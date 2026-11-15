@@ -7,6 +7,8 @@ import kotlin.math.abs
 
 object CurrencyFormatter {
 
+  private val WHITESPACE_REGEX = Regex("\\s+")
+
   /**
    * Formats an amount in Indian Rupees with Indian digit grouping (e.g., ₹1,50,000).
    * Preserves up to 2 decimal places only when fractional paise exist.
@@ -63,7 +65,7 @@ object CurrencyFormatter {
   }
 
   fun extractInitials(name: String): String {
-    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    val words = name.trim().split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
     return when {
       words.isEmpty() -> "?"
       words.size == 1 -> words[0].take(2).uppercase(Locale.getDefault())

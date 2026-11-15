@@ -1,7 +1,13 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,14 +38,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -56,7 +69,10 @@ import com.example.data.local.EntryEntity
 import com.example.data.local.EntryType
 import com.example.domain.CurrencyFormatter
 import com.example.ui.theme.LocalFundTrackColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EntrySectionCard(
   businessId: Long,
@@ -75,12 +91,21 @@ fun EntrySectionCard(
   modifier: Modifier = Modifier,
 ) {
   val semanticColors = LocalFundTrackColors.current
+  val coroutineScope = rememberCoroutineScope()
+  val formBringIntoViewRequester = remember { BringIntoViewRequester() }
 
   var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
   var nameInput by rememberSaveable(businessId, type) { mutableStateOf("") }
   var amountInput by rememberSaveable(businessId, type) { mutableStateOf("") }
   var nameError by rememberSaveable(businessId, type) { mutableStateOf(false) }
   var amountError by rememberSaveable(businessId, type) { mutableStateOf(false) }
+
+  LaunchedEffect(isFormOpen) {
+    if (isFormOpen) {
+      delay(160)
+      formBringIntoViewRequester.bringIntoView()
+    }
+  }
 
   fun submitEntry() {
     val cleanName = nameInput.trim()
@@ -157,33 +182,42 @@ fun EntrySectionCard(
       } else {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
           entries.forEachIndexed { index, entry ->
-            EntryRow(
-              entry = entry,
-              badgeContainerColor = badgeContainerColor,
-              badgeContentColor = badgeContentColor,
-              onDelete = { onDeleteEntry(entry) },
-              onMarkReceived =
-                if (type == EntryType.DUE && onMarkDueReceived != null) {
-                  { onMarkDueReceived(entry) }
-                } else {
-                  null
-                },
-            )
-            if (index < entries.lastIndex) {
-              HorizontalDivider(
-                color = semanticColors.cardBorder.copy(alpha = 0.6f),
-                thickness = 1.dp,
+            key(entry.id) {
+              EntryRow(
+                entry = entry,
+                badgeContainerColor = badgeContainerColor,
+                badgeContentColor = badgeContentColor,
+                receivedContainerColor = semanticColors.softGreenContainer,
+                receivedContentColor = semanticColors.softGreenContent,
+                onDelete = { onDeleteEntry(entry) },
+                onMarkReceived =
+                  if (type == EntryType.DUE && onMarkDueReceived != null) {
+                    { onMarkDueReceived(entry) }
+                  } else {
+                    null
+                  },
               )
+              if (index < entries.lastIndex) {
+                HorizontalDivider(
+                  color = semanticColors.cardBorder.copy(alpha = 0.6f),
+                  thickness = 1.dp,
+                )
+              }
             }
           }
         }
       }
 
       // Inline add form
-      AnimatedVisibility(visible = isFormOpen) {
+      AnimatedVisibility(
+        visible = isFormOpen,
+        enter = fadeIn(tween(140)) + expandVertically(tween(160)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(140)),
+      ) {
         Column(
           modifier =
             Modifier.fillMaxWidth()
+              .bringIntoViewRequester(formBringIntoViewRequester)
               .clip(RoundedCornerShape(18.dp))
               .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
               .padding(14.dp),
@@ -214,7 +248,16 @@ fun EntrySectionCard(
               ),
             shape = RoundedCornerShape(14.dp),
             modifier =
-              Modifier.fillMaxWidth().testTag("entry_name_input_${type.name.lowercase()}"),
+              Modifier.fillMaxWidth()
+                .onFocusChanged { focusState ->
+                  if (focusState.isFocused) {
+                    coroutineScope.launch {
+                      delay(180)
+                      formBringIntoViewRequester.bringIntoView()
+                    }
+                  }
+                }
+                .testTag("entry_name_input_${type.name.lowercase()}"),
           )
 
           OutlinedTextField(
@@ -242,7 +285,16 @@ fun EntrySectionCard(
             keyboardActions = KeyboardActions(onDone = { submitEntry() }),
             shape = RoundedCornerShape(14.dp),
             modifier =
-              Modifier.fillMaxWidth().testTag("entry_amount_input_${type.name.lowercase()}"),
+              Modifier.fillMaxWidth()
+                .onFocusChanged { focusState ->
+                  if (focusState.isFocused) {
+                    coroutineScope.launch {
+                      delay(180)
+                      formBringIntoViewRequester.bringIntoView()
+                    }
+                  }
+                }
+                .testTag("entry_amount_input_${type.name.lowercase()}"),
           )
 
           Button(
@@ -308,9 +360,14 @@ private fun EntryRow(
   entry: EntryEntity,
   badgeContainerColor: Color,
   badgeContentColor: Color,
+  receivedContainerColor: Color,
+  receivedContentColor: Color,
   onDelete: () -> Unit,
   onMarkReceived: (() -> Unit)?,
 ) {
+  val initials = remember(entry.name) { CurrencyFormatter.extractInitials(entry.name) }
+  val formattedAmount = remember(entry.amount) { CurrencyFormatter.formatInr(entry.amount) }
+
   Row(
     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("entry_row_${entry.id}"),
     verticalAlignment = Alignment.CenterVertically,
@@ -325,7 +382,7 @@ private fun EntryRow(
       contentAlignment = Alignment.Center,
     ) {
       Text(
-        text = CurrencyFormatter.extractInitials(entry.name),
+        text = initials,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.Bold,
         color = badgeContentColor,
@@ -343,7 +400,7 @@ private fun EntryRow(
         overflow = TextOverflow.Ellipsis,
       )
       Text(
-        text = CurrencyFormatter.formatInr(entry.amount),
+        text = formattedAmount,
         style =
           MaterialTheme.typography.bodyMedium.copy(
             fontWeight = FontWeight.SemiBold,
@@ -360,8 +417,8 @@ private fun EntryRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         colors =
           ButtonDefaults.filledTonalButtonColors(
-            containerColor = LocalFundTrackColors.current.softGreenContainer,
-            contentColor = LocalFundTrackColors.current.softGreenContent,
+            containerColor = receivedContainerColor,
+            contentColor = receivedContentColor,
           ),
         modifier = Modifier.heightIn(min = 48.dp).testTag("received_btn_${entry.id}"),
       ) {

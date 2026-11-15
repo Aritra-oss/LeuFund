@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
@@ -68,9 +68,12 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
       ThemeMode.LIGHT -> false
       ThemeMode.DARK -> true
     }
-  val onQuickToggleTheme = {
-    viewModel.setThemeMode(if (isEffectiveDark) ThemeMode.LIGHT else ThemeMode.DARK)
-  }
+  val onQuickToggleTheme =
+    remember(isEffectiveDark, viewModel) {
+      {
+        viewModel.setThemeMode(if (isEffectiveDark) ThemeMode.LIGHT else ThemeMode.DARK)
+      }
+    }
 
   val snackbarHostState = remember { SnackbarHostState() }
   val context = LocalContext.current
@@ -171,10 +174,11 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
       contentWindowInsets = WindowInsets.safeDrawing,
       snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
+      val contentModifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)
       when (val state = uiState) {
         FundTrackUiState.Loading -> {
           Box(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier.fillMaxSize().then(contentModifier),
             contentAlignment = Alignment.Center,
           ) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -192,24 +196,30 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
             onCreateBusiness = viewModel::createBusiness,
             onReopenBusiness = viewModel::reopenBusiness,
             onDeleteBusiness = viewModel::deleteBusiness,
-            modifier = Modifier.padding(innerPadding),
+            modifier = contentModifier,
           )
         }
 
         is FundTrackUiState.Dashboard -> {
+          val openSettings = remember { { isSettingsOpen = true } }
+          val addEntryForSelected =
+            remember(state.selectedBusiness.id, viewModel) {
+              { type: EntryType, name: String, amount: Double ->
+                viewModel.addEntry(state.selectedBusiness.id, type, name, amount)
+              }
+            }
+
           DashboardContent(
             state = state,
             isDark = isEffectiveDark,
             onToggleTheme = onQuickToggleTheme,
             onSelectBusiness = viewModel::selectBusiness,
             onAddBusiness = viewModel::createBusiness,
-            onOpenSettings = { isSettingsOpen = true },
-            onAddEntry = { type, name, amount ->
-              viewModel.addEntry(state.selectedBusiness.id, type, name, amount)
-            },
+            onOpenSettings = openSettings,
+            onAddEntry = addEntryForSelected,
             onDeleteEntry = viewModel::deleteEntry,
             onMarkDueReceived = viewModel::markDueAsReceived,
-            modifier = Modifier.padding(innerPadding),
+            modifier = contentModifier,
           )
 
           if (isSettingsOpen) {
@@ -275,8 +285,15 @@ private fun DashboardContent(
       )
     }
   val filteredEmptyMsg = if (isFiltering) stringResource(R.string.no_matching_entries) else null
+  val onSearchQueryChange = remember(state.selectedBusiness.id) { { next: String -> searchQuery = next } }
+  val onAddInvestment =
+    remember(onAddEntry) { { name: String, amount: Double -> onAddEntry(EntryType.INVESTMENT, name, amount) } }
+  val onAddRevenue =
+    remember(onAddEntry) { { name: String, amount: Double -> onAddEntry(EntryType.REVENUE, name, amount) } }
+  val onAddDue =
+    remember(onAddEntry) { { name: String, amount: Double -> onAddEntry(EntryType.DUE, name, amount) } }
 
-  Box(modifier = modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.TopCenter) {
+  Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     LazyColumn(
       modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
       contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
@@ -297,7 +314,7 @@ private fun DashboardContent(
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
           DashboardSearchBar(
             query = searchQuery,
-            onQueryChange = { searchQuery = it },
+            onQueryChange = onSearchQueryChange,
             matchingCount = filtered.totalCount,
           )
         }
@@ -348,7 +365,7 @@ private fun DashboardContent(
             markerColor = semanticColors.softRedContent,
             badgeContainerColor = semanticColors.softRedContainer,
             badgeContentColor = semanticColors.softRedContent,
-            onAddEntry = { name, amount -> onAddEntry(EntryType.INVESTMENT, name, amount) },
+            onAddEntry = onAddInvestment,
             onDeleteEntry = onDeleteEntry,
             emptyMessage = filteredEmptyMsg,
           )
@@ -368,7 +385,7 @@ private fun DashboardContent(
             markerColor = state.themePalette.accent,
             badgeContainerColor = semanticColors.softGreenContainer,
             badgeContentColor = semanticColors.softGreenContent,
-            onAddEntry = { name, amount -> onAddEntry(EntryType.REVENUE, name, amount) },
+            onAddEntry = onAddRevenue,
             onDeleteEntry = onDeleteEntry,
             emptyMessage = filteredEmptyMsg,
           )
@@ -387,7 +404,7 @@ private fun DashboardContent(
             markerColor = semanticColors.softAmberContent,
             badgeContainerColor = semanticColors.softAmberContainer,
             badgeContentColor = semanticColors.softAmberContent,
-            onAddEntry = { name, amount -> onAddEntry(EntryType.DUE, name, amount) },
+            onAddEntry = onAddDue,
             onDeleteEntry = onDeleteEntry,
             onMarkDueReceived = onMarkDueReceived,
             emptyMessage = filteredEmptyMsg,

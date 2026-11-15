@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,11 +14,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,11 +46,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -64,7 +68,10 @@ import com.example.R
 import com.example.data.local.BusinessEntity
 import com.example.domain.BusinessThemePalette
 import com.example.ui.theme.LocalFundTrackColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FirstRunScreen(
   closedBusinesses: List<BusinessEntity>,
@@ -81,6 +88,12 @@ fun FirstRunScreen(
 
   val greenTheme = BusinessThemePalette.GREEN
   val semanticColors = LocalFundTrackColors.current
+  val coroutineScope = rememberCoroutineScope()
+  val formBringIntoViewRequester = remember { BringIntoViewRequester() }
+  val gradientBrush =
+    remember(greenTheme) {
+      Brush.linearGradient(colors = listOf(greenTheme.gradientStart, greenTheme.gradientEnd))
+    }
 
   fun attemptCreate() {
     if (businessName.trim().isEmpty()) {
@@ -93,7 +106,7 @@ fun FirstRunScreen(
   }
 
   Box(
-    modifier = modifier.fillMaxSize().imePadding(),
+    modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.TopCenter,
   ) {
     Column(
@@ -134,20 +147,15 @@ fun FirstRunScreen(
 
       // Large green gradient card
       Surface(
-        modifier = Modifier.fillMaxWidth().testTag("first_run_card"),
+        modifier =
+          Modifier.fillMaxWidth()
+            .bringIntoViewRequester(formBringIntoViewRequester)
+            .testTag("first_run_card"),
         shape = RoundedCornerShape(28.dp),
         color = Color.Transparent,
-        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
       ) {
-        Box(
-          modifier =
-            Modifier.background(
-                Brush.linearGradient(
-                  colors = listOf(greenTheme.gradientStart, greenTheme.gradientEnd)
-                )
-              )
-              .padding(24.dp)
-        ) {
+        Box(modifier = Modifier.background(gradientBrush).padding(24.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
               text = stringResource(R.string.first_run_title),
@@ -206,7 +214,17 @@ fun FirstRunScreen(
                   focusedContainerColor = Color.White.copy(alpha = 0.08f),
                   unfocusedContainerColor = Color.White.copy(alpha = 0.06f),
                 ),
-              modifier = Modifier.fillMaxWidth().testTag("first_run_business_name_input"),
+              modifier =
+                Modifier.fillMaxWidth()
+                  .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                      coroutineScope.launch {
+                        delay(180)
+                        formBringIntoViewRequester.bringIntoView()
+                      }
+                    }
+                  }
+                  .testTag("first_run_business_name_input"),
             )
 
             Button(

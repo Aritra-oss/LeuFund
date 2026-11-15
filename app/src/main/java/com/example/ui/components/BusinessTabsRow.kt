@@ -1,7 +1,13 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,12 +44,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -59,7 +70,10 @@ import com.example.R
 import com.example.data.local.BusinessEntity
 import com.example.domain.BusinessThemePalette
 import com.example.ui.theme.LocalFundTrackColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BusinessTabsRow(
   openBusinesses: List<BusinessEntity>,
@@ -71,6 +85,8 @@ fun BusinessTabsRow(
   modifier: Modifier = Modifier,
 ) {
   val semanticColors = LocalFundTrackColors.current
+  val coroutineScope = rememberCoroutineScope()
+  val formBringIntoViewRequester = remember { BringIntoViewRequester() }
   var isAddOpen by rememberSaveable { mutableStateOf(false) }
   var newBusinessName by rememberSaveable { mutableStateOf("") }
   var showNameError by rememberSaveable { mutableStateOf(false) }
@@ -180,9 +196,16 @@ fun BusinessTabsRow(
       )
     }
 
-    AnimatedVisibility(visible = isAddOpen) {
+    AnimatedVisibility(
+      visible = isAddOpen,
+      enter = fadeIn(tween(140)) + expandVertically(tween(160)),
+      exit = fadeOut(tween(120)) + shrinkVertically(tween(140)),
+    ) {
       Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier =
+          Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .bringIntoViewRequester(formBringIntoViewRequester),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, semanticColors.cardBorder),
@@ -240,7 +263,17 @@ fun BusinessTabsRow(
                 ),
               keyboardActions = KeyboardActions(onDone = { submitNewBusiness() }),
               shape = RoundedCornerShape(16.dp),
-              modifier = Modifier.weight(1f).testTag("new_business_name_input"),
+              modifier =
+                Modifier.weight(1f)
+                  .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                      coroutineScope.launch {
+                        delay(180)
+                        formBringIntoViewRequester.bringIntoView()
+                      }
+                    }
+                  }
+                  .testTag("new_business_name_input"),
             )
 
             Spacer(modifier = Modifier.width(2.dp))

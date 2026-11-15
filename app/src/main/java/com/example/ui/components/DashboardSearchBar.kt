@@ -1,6 +1,11 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,7 +92,11 @@ fun DashboardSearchBar(
       modifier = Modifier.fillMaxWidth().testTag("dashboard_search_input"),
     )
 
-    AnimatedVisibility(visible = trimmedQuery.isNotEmpty()) {
+    AnimatedVisibility(
+      visible = trimmedQuery.isNotEmpty(),
+      enter = fadeIn(tween(120)) + expandVertically(tween(140)),
+      exit = fadeOut(tween(100)) + shrinkVertically(tween(120)),
+    ) {
       Text(
         text =
           if (matchingCount == 0) {
