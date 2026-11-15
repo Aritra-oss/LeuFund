@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,14 +9,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,12 +27,27 @@ import com.example.ui.theme.LocalFundTrackColors
 @Composable
 fun CautionCard(modifier: Modifier = Modifier) {
   val semanticColors = LocalFundTrackColors.current
+  val fillBrush =
+    remember(semanticColors.softAmberContainer) {
+      Brush.linearGradient(
+        colors =
+          listOf(
+            semanticColors.softAmberContainer.copy(alpha = 0.92f),
+            semanticColors.softAmberContainer.copy(alpha = 0.68f),
+          )
+      )
+    }
+  val rimBrush =
+    remember(semanticColors.glassRimStart, semanticColors.softAmberBorder) {
+      Brush.linearGradient(colors = listOf(semanticColors.glassRimStart, semanticColors.softAmberBorder))
+    }
 
-  Card(
+  GlassCard(
     modifier = modifier.fillMaxWidth().testTag("caution_card"),
     shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(containerColor = semanticColors.softAmberContainer),
-    border = BorderStroke(1.dp, semanticColors.softAmberBorder),
+    elevation = 6.dp,
+    customFillBrush = fillBrush,
+    customRimBrush = rimBrush,
   ) {
     Row(
       modifier = Modifier.padding(18.dp),

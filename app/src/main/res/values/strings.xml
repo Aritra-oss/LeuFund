@@ -103,4 +103,115 @@
     <string name="confirm_close_body">This hides %1$s from your tabs while keeping all of its data. You can reopen it anytime from Settings.</string>
     <string name="confirm_delete_business_title">Delete %1$s?</string>
     <string name="confirm_delete_business_body">This permanently removes %1$s and all of its entries. This cannot be undone.</string>
+
+    <!-- Privacy, Analytics, Filters, Quick Log & Edit -->
+    <string name="hide_amounts_cd">Hide rupee amounts</string>
+    <string name="show_amounts_cd">Show rupee amounts</string>
+    <string name="masked_amount">₹ ••••••</string>
+    <string name="status_profitable">Profitable</string>
+    <string name="status_recovering">Recovering</string>
+    <string name="status_new">Ready</string>
+    <string name="roi_badge_positive">+%1$d%% ROI</string>
+    <string name="roi_badge_negative">%1$d%% ROI</string>
+    <string name="if_dues_collected">With dues: %1$s</string>
+    <string name="cashflow_radar_title">Cashflow pulse</string>
+    <string name="collection_rate_label">Collected</string>
+    <string name="top_client_label">Top client</string>
+    <string name="total_volume_label">Volume</string>
+    <string name="what_if_simulator">What-If Simulator</string>
+    <string name="simulator_title">What-If Profit Simulator</string>
+    <string name="simulator_subtitle">Test future sales or expenses live without changing your saved ledger.</string>
+    <string name="simulator_extra_revenue">Hypothetical extra revenue</string>
+    <string name="simulator_extra_investment">Hypothetical extra investment</string>
+    <string name="simulator_include_dues">Count %1$s pending dues as collected</string>
+    <string name="simulator_projected_net">Projected net profit</string>
+    <string name="simulator_break_even_done">Break-even reached! Earned %1$s back.</string>
+    <string name="simulator_break_even_gap">%1$s more revenue needed to break even</string>
+    <string name="simulator_reset">Reset</string>
+    <string name="filter_all">All</string>
+    <string name="sort_newest">Newest</string>
+    <string name="sort_highest">Highest ₹</string>
+    <string name="quick_log_fab">Quick Log</string>
+    <string name="quick_log_title">Quick Log Entry</string>
+    <string name="edit_entry_title">Edit Entry</string>
+    <string name="update_entry">Update entry</string>
+    <string name="entry_updated_snackbar">Updated \"%1$s\"</string>
+    <string name="recent_names_label">Recent</string>
+    <string name="category_label">Category</string>
+    <string name="first_run_badge_offline">100% Offline</string>
+    <string name="first_run_badge_inr">Indian ₹ Ledger</string>
+    <string name="first_run_badge_backup">CSV &amp; PDF Export</string>
+
+    <!-- Biometric Authentication, M-PIN & Security -->
+    <string name="biometric_prompt_title">Unlock LeuFunds</string>
+    <string name="biometric_prompt_subtitle">Verify your identity to access your business finances</string>
+    <string name="biometric_prompt_negative">Use M-PIN</string>
+    <string name="biometric_lock_title">LeuFunds is locked</string>
+    <string name="biometric_lock_subtitle">Authenticate with biometrics or your 4-digit M-PIN to view private financial records.</string>
+    <string name="biometric_lock_badge">Private Vault</string>
+    <string name="biometric_unlock_button">Unlock with Biometrics</string>
+    <string name="biometric_unlock_device_button">Unlock with Screen Lock</string>
+    <string name="biometric_canceled_hint">Biometric prompt closed. Retry or enter your 4-digit M-PIN below.</string>
+    <string name="biometric_error_hint">Biometric check unavailable (%1$s). Use your 4-digit M-PIN below.</string>
+    <string name="security_section_title">App Security</string>
+    <string name="biometric_setting_title">Biometric unlock on launch</string>
+    <string name="biometric_setting_desc">Use fingerprint or face unlock first. Your M-PIN stays active whenever biometric unlock is off or unavailable.</string>
+    <string name="lock_app_now">Lock LeuFunds now</string>
+    <string name="lock_app_now_desc">Immediately locks the screen behind M-PIN or biometric verification.</string>
+
+    <!-- M-PIN Setup, Unlock & Change -->
+    <string name="mpin_setup_badge">Mandatory Setup</string>
+    <string name="mpin_step_create">1. Create</string>
+    <string name="mpin_step_confirm">2. Confirm</string>
+    <string name="mpin_setup_title_create">Set up your 4-digit M-PIN</string>
+    <string name="mpin_setup_subtitle_create">Setting up an M-PIN is required so you can always access LeuFunds even without biometric authentication.</string>
+    <string name="mpin_setup_title_confirm">Confirm your M-PIN</string>
+    <string name="mpin_setup_subtitle_confirm">Re-enter the same 4 digits to lock your business vault.</string>
+    <string name="mpin_setup_mismatch_error">M-PINs did not match. Re-enter or start over.</string>
+    <string name="mpin_setup_start_over">Change first 4 digits</string>
+    <string name="mpin_created_snackbar">M-PIN set up successfully</string>
+    <string name="mpin_unlock_title">Enter M-PIN</string>
+    <string name="mpin_unlock_subtitle_fallback">Biometric unlock is off or unavailable. Enter your 4-digit M-PIN to open LeuFunds.</string>
+    <string name="mpin_unlock_subtitle_choice">Enter your 4-digit M-PIN to access your business financials.</string>
+    <string name="mpin_use_instead">Unlock with M-PIN</string>
+    <string name="biometric_use_instead">Use Biometrics instead</string>
+    <plurals name="mpin_incorrect_attempts_left">
+        <item quantity="one">Incorrect M-PIN. %1$d attempt left before temporary pause.</item>
+        <item quantity="other">Incorrect M-PIN. %1$d attempts left before temporary pause.</item>
+    </plurals>
+    <string name="mpin_lockout_wait">Too many incorrect attempts. Try again in %1$ds.</string>
+    <string name="mpin_key_clear">Clear</string>
+    <string name="mpin_key_backspace_cd">Delete digit</string>
+    <string name="mpin_dots_cd">M-PIN digits entered: %1$d of %2$d</string>
+    <string name="change_mpin_title">Change M-PIN</string>
+    <string name="change_mpin_desc">Update the 4-digit M-PIN used to unlock LeuFunds.</string>
+    <string name="change_mpin_step_current">Verify Current M-PIN</string>
+    <string name="change_mpin_step_new">Enter New M-PIN</string>
+    <string name="change_mpin_step_confirm">Confirm New M-PIN</string>
+    <string name="change_mpin_subtitle_current">Enter your existing 4-digit M-PIN before choosing a new one.</string>
+    <string name="change_mpin_subtitle_new">Choose a new 4-digit M-PIN.</string>
+    <string name="change_mpin_subtitle_confirm">Re-enter your new 4-digit M-PIN to save changes.</string>
+    <string name="change_mpin_wrong_current">Current M-PIN is incorrect. Please try again.</string>
+    <string name="change_mpin_same_as_old">New M-PIN should be different from your current M-PIN.</string>
+    <string name="mpin_changed_snackbar">M-PIN updated successfully</string>
+
+    <!-- Financial Summary -->
+    <string name="financial_summary_button">Financial Summary</string>
+    <string name="financial_summary_title">%1$s Summary</string>
+    <string name="financial_summary_all_time">All-time business ledger</string>
+    <string name="financial_summary_net_deficit">Net deficit</string>
+    <string name="financial_summary_mix_title">Cashflow mix &amp; highlights</string>
+    <string name="financial_summary_avg_entry">Average entry</string>
+    <string name="financial_summary_top_client">Top revenue client</string>
+    <string name="financial_summary_top_expense">Largest investment</string>
+    <string name="financial_summary_empty_period">No entries logged for %1$s yet.</string>
+    <string name="period_today">Today</string>
+    <string name="period_last_7_days">Last 7 Days</string>
+    <string name="period_last_30_days">Last 30 Days</string>
+    <string name="period_last_year">Last Year</string>
+    <string name="period_lifetime">Lifetime</string>
+    <plurals name="financial_summary_entry_count">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
 </resources>

@@ -10,16 +10,20 @@ import com.example.data.repository.FundTrackRepository
 import com.example.domain.BackupReminderPolicy
 import com.example.domain.BusinessThemePalette
 import com.example.domain.CsvExporter
+import com.example.domain.CurrencyFormatter
+import com.example.domain.DashboardInsights
 import com.example.domain.PdfReportGenerator
 import com.example.domain.ThemeMode
 import java.io.OutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -84,6 +88,61 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
       initialValue = ThemeMode.SYSTEM,
     )
 
+  val biometricLockEnabled: StateFlow<Boolean?> =
+    repository.biometricLockEnabled.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000L),
+      initialValue = null,
+    )
+
+  val hasMpin: StateFlow<Boolean?> =
+    repository.hasMpin.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000L),
+      initialValue = null,
+    )
+
+  private val _isSessionUnlocked = MutableStateFlow(false)
+  val isSessionUnlocked: StateFlow<Boolean> = _isSessionUnlocked.asStateFlow()
+
+  fun unlockSession() {
+    _isSessionUnlocked.value = true
+  }
+
+  fun lockSession() {
+    _isSessionUnlocked.value = false
+  }
+
+  fun setBiometricLockEnabled(enabled: Boolean) {
+    // Keep current interactive settings session unlocked; next launch applies updated mode.
+    _isSessionUnlocked.value = true
+    viewModelScope.launch { repository.setBiometricLockEnabled(enabled) }
+  }
+
+  fun setupInitialMpin(pin: String) {
+    viewModelScope.launch {
+      repository.setupMpin(pin)
+      _isSessionUnlocked.value = true
+      _events.emit(FundTrackEvent.MpinCreated)
+    }
+  }
+
+  suspend fun verifyMpinAndUnlock(pin: String): Boolean {
+    val isValid = repository.verifyMpin(pin)
+    if (isValid) {
+      _isSessionUnlocked.value = true
+    }
+    return isValid
+  }
+
+  suspend fun changeMpin(currentPin: String, newPin: String): Boolean {
+    val updated = repository.changeMpin(currentPin, newPin)
+    if (updated) {
+      _events.emit(FundTrackEvent.MpinChanged)
+    }
+    return updated
+  }
+
   fun setThemeMode(mode: ThemeMode) {
     viewModelScope.launch { repository.setThemeMode(mode) }
   }
@@ -139,6 +198,17 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
     viewModelScope.launch {
       repository.markDueAsReceived(entry.id)
       _events.emit(FundTrackEvent.DueMarkedReceived(entry.name))
+    }
+  }
+
+  fun updateEntry(existing: EntryEntity, newType: EntryType, newName: String, newAmount: Double) {
+    val trimmed = newName.trim()
+    if (trimmed.isEmpty() || newAmount < 0.0 || newAmount.isNaN() || newAmount.isInfinite()) {
+      return
+    }
+    viewModelScope.launch {
+      repository.updateEntry(existing, newType, trimmed, newAmount)
+      _events.emit(FundTrackEvent.EntryUpdated(trimmed))
     }
   }
 
@@ -219,6 +289,15 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
       val netProfit = totalRevenue - totalInvestment
 
       val clientEarnings = computeClientEarnings(revenues)
+      val topClient = clientEarnings.firstOrNull()
+      val pulseMetrics =
+        DashboardInsights.computePulse(
+          totalInvestment = totalInvestment,
+          totalRevenue = totalRevenue,
+          totalDue = totalDue,
+          topClientName = topClient?.displayName,
+          topClientAmount = topClient?.totalAmount ?: 0.0,
+        )
       val baselineCreatedAt = (openBusinesses + closedBusinesses).minOfOrNull { it.createdAt }
       val backupStatus =
         BackupReminderPolicy.evaluate(
@@ -235,11 +314,15 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
         investmentEntries = investments,
         revenueEntries = revenues,
         dueEntries = dues,
+        investmentModels = DashboardInsights.toEntryUiModels(investments),
+        revenueModels = DashboardInsights.toEntryUiModels(revenues),
+        dueModels = DashboardInsights.toEntryUiModels(dues),
         totalInvestment = totalInvestment,
         totalRevenue = totalRevenue,
         totalDue = totalDue,
         netProfit = netProfit,
         clientEarnings = clientEarnings,
+        pulseMetrics = pulseMetrics,
         backupStatus = backupStatus,
       )
     }
@@ -274,6 +357,7 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
           displayName = acc.displayName,
           totalAmount = acc.total,
           fractionOfMax = fraction,
+          formattedAmount = CurrencyFormatter.formatInr(acc.total),
         )
       }
     }

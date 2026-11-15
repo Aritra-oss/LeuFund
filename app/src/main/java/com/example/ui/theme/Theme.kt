@@ -2,7 +2,9 @@ package com.example.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -12,6 +14,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 @Immutable
@@ -27,6 +30,15 @@ data class FundTrackSemanticColors(
   val selectedTabBg: Color,
   val selectedTabText: Color,
   val selectedTabBorder: Color,
+  val canvasTop: Color,
+  val canvasBottom: Color,
+  val glassFillStart: Color,
+  val glassFillEnd: Color,
+  val glassElevatedStart: Color,
+  val glassElevatedEnd: Color,
+  val glassRimStart: Color,
+  val glassRimEnd: Color,
+  val glassShadow: Color,
 )
 
 private val LightSemanticColors =
@@ -38,10 +50,19 @@ private val LightSemanticColors =
     softAmberContainer = SoftAmberBgLight,
     softAmberContent = SoftAmberFgLight,
     softAmberBorder = SoftAmberBorderLight,
-    cardBorder = LightOutline,
+    cardBorder = LightGlassRimStart,
     selectedTabBg = SelectedTabDarkFill,
     selectedTabText = Color.White,
     selectedTabBorder = SelectedTabDarkFill,
+    canvasTop = LightCanvasTop,
+    canvasBottom = LightCanvasBottom,
+    glassFillStart = LightGlassFillStart,
+    glassFillEnd = LightGlassFillEnd,
+    glassElevatedStart = LightGlassElevatedStart,
+    glassElevatedEnd = LightGlassElevatedEnd,
+    glassRimStart = LightGlassRimStart,
+    glassRimEnd = LightGlassRimEnd,
+    glassShadow = LightGlassShadow,
   )
 
 private val DarkSemanticColors =
@@ -53,10 +74,28 @@ private val DarkSemanticColors =
     softAmberContainer = SoftAmberBgDark,
     softAmberContent = SoftAmberFgDark,
     softAmberBorder = SoftAmberBorderDark,
-    cardBorder = DarkOutline,
+    cardBorder = DarkGlassRimStart,
     selectedTabBg = SelectedTabDarkFill,
     selectedTabText = Color.White,
     selectedTabBorder = SelectedTabDarkBorder,
+    canvasTop = DarkCanvasTop,
+    canvasBottom = DarkCanvasBottom,
+    glassFillStart = DarkGlassFillStart,
+    glassFillEnd = DarkGlassFillEnd,
+    glassElevatedStart = DarkGlassElevatedStart,
+    glassElevatedEnd = DarkGlassElevatedEnd,
+    glassRimStart = DarkGlassRimStart,
+    glassRimEnd = DarkGlassRimEnd,
+    glassShadow = DarkGlassShadow,
+  )
+
+val FundTrackGlassShapes =
+  Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(22.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(32.dp),
   )
 
 val LocalFundTrackColors = staticCompositionLocalOf { LightSemanticColors }
@@ -74,9 +113,9 @@ fun FundTrackTheme(
         onPrimary = Color.White,
         background = DarkBackground,
         onBackground = DarkOnSurface,
-        surface = DarkSurface,
+        surface = Color(0xFF111916),
         onSurface = DarkOnSurface,
-        surfaceVariant = DarkSurfaceVariant,
+        surfaceVariant = Color(0xFF1B2622),
         onSurfaceVariant = DarkOnSurfaceVariant,
         outline = DarkOutline,
         error = SoftRedFgDark,
@@ -88,9 +127,9 @@ fun FundTrackTheme(
         onPrimary = Color.White,
         background = LightBackground,
         onBackground = LightOnSurface,
-        surface = LightSurface,
+        surface = Color(0xFFF9FCFA),
         onSurface = LightOnSurface,
-        surfaceVariant = LightSurfaceVariant,
+        surfaceVariant = Color(0xFFE7EFEA),
         onSurfaceVariant = LightOnSurfaceVariant,
         outline = LightOutline,
         error = SoftRedFgLight,
@@ -116,6 +155,7 @@ fun FundTrackTheme(
     MaterialTheme(
       colorScheme = colorScheme,
       typography = FundTrackTypography,
+      shapes = FundTrackGlassShapes,
       content = content,
     )
   }

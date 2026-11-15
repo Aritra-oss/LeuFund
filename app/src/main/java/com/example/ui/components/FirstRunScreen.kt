@@ -4,9 +4,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,13 +30,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CurrencyRupee
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,9 +56,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -71,7 +80,7 @@ import com.example.ui.theme.LocalFundTrackColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun FirstRunScreen(
   closedBusinesses: List<BusinessEntity>,
@@ -92,8 +101,21 @@ fun FirstRunScreen(
   val formBringIntoViewRequester = remember { BringIntoViewRequester() }
   val gradientBrush =
     remember(greenTheme) {
-      Brush.linearGradient(colors = listOf(greenTheme.gradientStart, greenTheme.gradientEnd))
+      Brush.linearGradient(
+        colors =
+          listOf(
+            greenTheme.gradientStart.copy(alpha = 0.88f),
+            greenTheme.gradientEnd.copy(alpha = 0.92f),
+          )
+      )
     }
+  val vaultRimBrush =
+    remember(greenTheme) {
+      Brush.linearGradient(
+        colors = listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.12f))
+      )
+    }
+  val vaultShape = RoundedCornerShape(30.dp)
 
   fun attemptCreate() {
     if (businessName.trim().isEmpty()) {
@@ -114,10 +136,10 @@ fun FirstRunScreen(
         Modifier.widthIn(max = 600.dp)
           .fillMaxWidth()
           .verticalScroll(rememberScrollState())
-          .padding(horizontal = 20.dp, vertical = 24.dp),
-      verticalArrangement = Arrangement.spacedBy(20.dp),
+          .padding(horizontal = 20.dp, vertical = 20.dp),
+      verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(4.dp))
 
       // App brand header with quick light/dark toggle
       Row(
@@ -145,17 +167,48 @@ fun FirstRunScreen(
         QuickThemeToggleButton(isDark = isDark, onToggle = onToggleTheme)
       }
 
-      // Large green gradient card
-      Surface(
+      // Frosted Green Gradient Creation Vault
+      Box(
         modifier =
           Modifier.fillMaxWidth()
             .bringIntoViewRequester(formBringIntoViewRequester)
+            .shadow(
+              elevation = 14.dp,
+              shape = vaultShape,
+              clip = false,
+              ambientColor = greenTheme.accent.copy(alpha = 0.45f),
+              spotColor = greenTheme.accent.copy(alpha = 0.45f),
+            )
+            .clip(vaultShape)
+            .background(gradientBrush)
+            .border(width = 1.dp, brush = vaultRimBrush, shape = vaultShape)
             .testTag("first_run_card"),
-        shape = RoundedCornerShape(28.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
       ) {
-        Box(modifier = Modifier.background(gradientBrush).padding(24.dp)) {
+        Box(
+          modifier =
+            Modifier.fillMaxWidth()
+              .drawBehind {
+                val glowCenter = Offset(size.width * 0.90f, size.height * 0.15f)
+                drawCircle(
+                  brush =
+                    Brush.radialGradient(
+                      colors =
+                        listOf(greenTheme.accentLightTint.copy(alpha = 0.25f), Color.Transparent),
+                      center = glowCenter,
+                      radius = size.width * 0.65f,
+                    ),
+                  center = glowCenter,
+                  radius = size.width * 0.65f,
+                )
+                drawCircle(
+                  color = Color.White.copy(alpha = 0.06f),
+                  radius = size.width * 0.50f,
+                  center = Offset(size.width * 0.95f, size.height * 0.08f),
+                  style = Stroke(width = 1.dp.toPx()),
+                )
+              }
+              .padding(24.dp)
+        ) {
           Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
               text = stringResource(R.string.first_run_title),
@@ -166,10 +219,28 @@ fun FirstRunScreen(
             Text(
               text = stringResource(R.string.first_run_subtitle),
               style = MaterialTheme.typography.bodyMedium,
-              color = Color.White.copy(alpha = 0.85f),
+              color = Color.White.copy(alpha = 0.86f),
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              FirstRunFeaturePill(
+                icon = Icons.Outlined.Lock,
+                text = stringResource(R.string.first_run_badge_offline),
+              )
+              FirstRunFeaturePill(
+                icon = Icons.Outlined.CurrencyRupee,
+                text = stringResource(R.string.first_run_badge_inr),
+              )
+              FirstRunFeaturePill(
+                icon = Icons.Outlined.PictureAsPdf,
+                text = stringResource(R.string.first_run_badge_backup),
+              )
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             OutlinedTextField(
               value = businessName,
@@ -252,11 +323,9 @@ fun FirstRunScreen(
       }
 
       if (closedBusinesses.isNotEmpty()) {
-        Card(
+        GlassCard(
           modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, semanticColors.cardBorder),
+          shape = RoundedCornerShape(26.dp),
         ) {
           Column(
             modifier = Modifier.padding(20.dp),
@@ -355,5 +424,32 @@ fun FirstRunScreen(
         }
       },
     )
+  }
+}
+
+@Composable
+private fun FirstRunFeaturePill(icon: ImageVector, text: String) {
+  Surface(
+    shape = RoundedCornerShape(999.dp),
+    color = Color.White.copy(alpha = 0.12f),
+    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+  ) {
+    Row(
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = Color.White.copy(alpha = 0.9f),
+        modifier = Modifier.size(14.dp),
+      )
+      Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White.copy(alpha = 0.94f),
+      )
+    }
   }
 }

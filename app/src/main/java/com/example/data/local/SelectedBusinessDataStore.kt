@@ -3,6 +3,7 @@ package com.example.data.local
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -20,6 +21,8 @@ class SelectedBusinessDataStore(private val context: Context) {
   private val nextThemeIndexKey = intPreferencesKey("next_theme_index")
   private val themeModeKey = stringPreferencesKey("theme_mode")
   private val lastExportMillisKey = longPreferencesKey("last_export_millis")
+  private val biometricLockEnabledKey = booleanPreferencesKey("biometric_lock_enabled")
+  private val mpinHashRecordKey = stringPreferencesKey("mpin_hash_record")
 
   val selectedBusinessId: Flow<Long?> =
     context.fundTrackDataStore.data.map { prefs -> prefs[selectedBusinessKey] }
@@ -30,12 +33,29 @@ class SelectedBusinessDataStore(private val context: Context) {
   val lastExportMillis: Flow<Long?> =
     context.fundTrackDataStore.data.map { prefs -> prefs[lastExportMillisKey] }
 
+  val biometricLockEnabled: Flow<Boolean> =
+    context.fundTrackDataStore.data.map { prefs -> prefs[biometricLockEnabledKey] ?: true }
+
+  val hasMpin: Flow<Boolean> =
+    context.fundTrackDataStore.data.map { prefs -> !prefs[mpinHashRecordKey].isNullOrBlank() }
+
+  val mpinHashRecord: Flow<String?> =
+    context.fundTrackDataStore.data.map { prefs -> prefs[mpinHashRecordKey] }
+
   suspend fun recordExportTimestamp(timestampMillis: Long = System.currentTimeMillis()) {
     context.fundTrackDataStore.edit { prefs -> prefs[lastExportMillisKey] = timestampMillis }
   }
 
   suspend fun setThemeMode(mode: ThemeMode) {
     context.fundTrackDataStore.edit { prefs -> prefs[themeModeKey] = mode.name }
+  }
+
+  suspend fun setBiometricLockEnabled(enabled: Boolean) {
+    context.fundTrackDataStore.edit { prefs -> prefs[biometricLockEnabledKey] = enabled }
+  }
+
+  suspend fun setMpinHashRecord(record: String) {
+    context.fundTrackDataStore.edit { prefs -> prefs[mpinHashRecordKey] = record }
   }
 
   suspend fun setSelectedBusinessId(businessId: Long?) {

@@ -7,8 +7,12 @@ import com.example.data.local.EntryEntity
 import com.example.data.local.EntryType
 import com.example.data.local.SelectedBusinessDataStore
 import com.example.domain.BusinessThemePalette
+import com.example.domain.MpinManager
 import com.example.domain.ThemeMode
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 
 class FundTrackRepository(
   private val businessDao: BusinessDao,
@@ -25,8 +29,34 @@ class FundTrackRepository(
 
   val lastExportMillis: Flow<Long?> = selectedBusinessDataStore.lastExportMillis
 
+  val biometricLockEnabled: Flow<Boolean> = selectedBusinessDataStore.biometricLockEnabled
+
+  val hasMpin: Flow<Boolean> = selectedBusinessDataStore.hasMpin
+
   suspend fun setThemeMode(mode: ThemeMode) {
     selectedBusinessDataStore.setThemeMode(mode)
+  }
+
+  suspend fun setBiometricLockEnabled(enabled: Boolean) {
+    selectedBusinessDataStore.setBiometricLockEnabled(enabled)
+  }
+
+  suspend fun setupMpin(pin: String) {
+    val hashRecord = withContext(Dispatchers.Default) { MpinManager.hashPin(pin) }
+    selectedBusinessDataStore.setMpinHashRecord(hashRecord)
+  }
+
+  suspend fun verifyMpin(pin: String): Boolean {
+    val storedRecord = selectedBusinessDataStore.mpinHashRecord.firstOrNull() ?: return false
+    return withContext(Dispatchers.Default) { MpinManager.verifyPin(pin, storedRecord) }
+  }
+
+  suspend fun changeMpin(currentPin: String, newPin: String): Boolean {
+    if (!MpinManager.isValidFormat(newPin)) return false
+    val verified = verifyMpin(currentPin)
+    if (!verified) return false
+    setupMpin(newPin)
+    return true
   }
 
   suspend fun recordExportCompleted(timestampMillis: Long = System.currentTimeMillis()) {
@@ -99,5 +129,20 @@ class FundTrackRepository(
 
   suspend fun markDueAsReceived(entryId: Long) {
     entryDao.updateEntryType(entryId = entryId, newType = EntryType.REVENUE)
+  }
+
+  suspend fun updateEntry(
+    existing: EntryEntity,
+    newType: EntryType,
+    newName: String,
+    newAmount: Double,
+  ) {
+    entryDao.updateEntry(
+      existing.copy(
+        type = newType,
+        name = newName.trim(),
+        amount = newAmount,
+      )
+    )
   }
 }

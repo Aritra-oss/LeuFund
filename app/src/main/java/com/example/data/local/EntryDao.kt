@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -13,6 +14,9 @@ interface EntryDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertEntry(entry: EntryEntity): Long
+
+  @Update
+  suspend fun updateEntry(entry: EntryEntity)
 
   @Query("DELETE FROM entries WHERE id = :entryId")
   suspend fun deleteEntryById(entryId: Long)

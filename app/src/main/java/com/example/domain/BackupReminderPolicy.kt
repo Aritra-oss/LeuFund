@@ -1,5 +1,8 @@
 package com.example.domain
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class BackupStatus(
   val lastExportMillis: Long? = null,
   val shouldRemind: Boolean = false,

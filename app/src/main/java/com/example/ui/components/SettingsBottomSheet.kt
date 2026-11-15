@@ -27,8 +27,11 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.Pin
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -40,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -84,7 +88,11 @@ fun SettingsBottomSheet(
   closedBusinesses: List<BusinessEntity>,
   backupStatus: BackupStatus,
   themeMode: ThemeMode,
+  biometricLockEnabled: Boolean,
   onSelectThemeMode: (ThemeMode) -> Unit,
+  onToggleBiometricLock: (Boolean) -> Unit,
+  onOpenChangeMpin: () -> Unit,
+  onLockNow: () -> Unit,
   onSelectTheme: (Int) -> Unit,
   onExportCsv: () -> Unit,
   onExportPdf: () -> Unit,
@@ -101,8 +109,8 @@ fun SettingsBottomSheet(
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surface,
-    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    containerColor = semanticColors.glassElevatedStart,
+    shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
   ) {
     Column(
       modifier =
@@ -206,6 +214,98 @@ fun SettingsBottomSheet(
 
       HorizontalDivider(color = semanticColors.cardBorder)
 
+      // App Security (Biometric Lock)
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+          text = stringResource(R.string.security_section_title),
+          style = MaterialTheme.typography.titleSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        val securityCardShape = RoundedCornerShape(18.dp)
+        Box(
+          modifier =
+            Modifier.fillMaxWidth()
+              .clip(securityCardShape)
+              .background(
+                Brush.linearGradient(
+                  colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
+                )
+              )
+              .border(
+                width = 1.dp,
+                brush =
+                  Brush.linearGradient(
+                    colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd)
+                  ),
+                shape = securityCardShape,
+              )
+              .clickable(role = Role.Switch) { onToggleBiometricLock(!biometricLockEnabled) },
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+          ) {
+            Icon(
+              imageVector = Icons.Outlined.Fingerprint,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(22.dp),
+            )
+            Column(
+              modifier = Modifier.weight(1f),
+              verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+              Text(
+                text = stringResource(R.string.biometric_setting_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+              Text(
+                text = stringResource(R.string.biometric_setting_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+            Switch(
+              checked = biometricLockEnabled,
+              onCheckedChange = onToggleBiometricLock,
+              modifier = Modifier.testTag("biometric_lock_switch"),
+            )
+          }
+        }
+
+        SettingsActionTile(
+          icon = Icons.Outlined.Pin,
+          title = stringResource(R.string.change_mpin_title),
+          subtitle = stringResource(R.string.change_mpin_desc),
+          containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+          contentColor = MaterialTheme.colorScheme.onSurface,
+          onClick = {
+            onDismiss()
+            onOpenChangeMpin()
+          },
+          testTag = "change_mpin_btn",
+        )
+
+        SettingsActionTile(
+          icon = Icons.Outlined.Lock,
+          title = stringResource(R.string.lock_app_now),
+          subtitle = stringResource(R.string.lock_app_now_desc),
+          containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+          contentColor = MaterialTheme.colorScheme.onSurface,
+          onClick = {
+            onDismiss()
+            onLockNow()
+          },
+          testTag = "lock_app_now_btn",
+        )
+      }
+
+      HorizontalDivider(color = semanticColors.cardBorder)
+
       // Actions: Export CSV, Delete all data & Close business
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SettingsActionTile(
@@ -276,11 +376,24 @@ fun SettingsBottomSheet(
 
           closedBusinesses.forEach { closed ->
             val palette = BusinessThemePalette.fromId(closed.themeId)
-            Surface(
-              shape = RoundedCornerShape(18.dp),
-              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-              border = BorderStroke(1.dp, semanticColors.cardBorder),
-              modifier = Modifier.fillMaxWidth(),
+            val cardShape = RoundedCornerShape(18.dp)
+            Box(
+              modifier =
+                Modifier.fillMaxWidth()
+                  .clip(cardShape)
+                  .background(
+                    Brush.linearGradient(
+                      colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
+                    )
+                  )
+                  .border(
+                    width = 1.dp,
+                    brush =
+                      Brush.linearGradient(
+                        colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd)
+                      ),
+                    shape = cardShape,
+                  ),
             ) {
               Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -447,13 +560,26 @@ private fun SettingsActionTile(
   onClick: () -> Unit,
   testTag: String,
 ) {
-  Surface(
-    shape = RoundedCornerShape(18.dp),
-    color = containerColor,
+  val semanticColors = LocalFundTrackColors.current
+  val tileShape = RoundedCornerShape(18.dp)
+  val fillBrush =
+    remember(containerColor) {
+      Brush.linearGradient(
+        colors = listOf(containerColor.copy(alpha = 0.92f), containerColor.copy(alpha = 0.65f))
+      )
+    }
+  val rimBrush =
+    remember(semanticColors.glassRimStart, semanticColors.glassRimEnd) {
+      Brush.linearGradient(colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd))
+    }
+
+  Box(
     modifier =
       Modifier.fillMaxWidth()
         .heightIn(min = 56.dp)
-        .clip(RoundedCornerShape(18.dp))
+        .clip(tileShape)
+        .background(fillBrush)
+        .border(width = 1.dp, brush = rimBrush, shape = tileShape)
         .clickable(role = Role.Button, onClick = onClick)
         .testTag(testTag),
   ) {
@@ -492,12 +618,29 @@ private fun BackupReminderBanner(
   onExportPdf: () -> Unit,
 ) {
   val semanticColors = LocalFundTrackColors.current
+  val bannerFillBrush =
+    remember(semanticColors.softAmberContainer) {
+      Brush.linearGradient(
+        colors =
+          listOf(
+            semanticColors.softAmberContainer.copy(alpha = 0.92f),
+            semanticColors.softAmberContainer.copy(alpha = 0.72f),
+          )
+      )
+    }
+  val bannerRimBrush =
+    remember(semanticColors.glassRimStart, semanticColors.softAmberBorder) {
+      Brush.linearGradient(
+        colors = listOf(semanticColors.glassRimStart, semanticColors.softAmberBorder)
+      )
+    }
 
-  Surface(
+  GlassCard(
     modifier = Modifier.fillMaxWidth().testTag("backup_reminder_banner"),
-    shape = RoundedCornerShape(20.dp),
-    color = semanticColors.softAmberContainer,
-    border = BorderStroke(1.dp, semanticColors.softAmberBorder),
+    shape = RoundedCornerShape(22.dp),
+    elevation = 6.dp,
+    customFillBrush = bannerFillBrush,
+    customRimBrush = bannerRimBrush,
   ) {
     Column(
       modifier = Modifier.padding(16.dp),
