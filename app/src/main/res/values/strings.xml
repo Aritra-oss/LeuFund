@@ -1,0 +1,106 @@
+<resources>
+    <string name="app_name">LeuFunds</string>
+
+    <!-- First run & business creation -->
+    <string name="first_run_title">Add your first business</string>
+    <string name="first_run_subtitle">Track your investments, revenue and pending dues offline on this device.</string>
+    <string name="business_name_label">Business name</string>
+    <string name="create_business">Create business</string>
+    <string name="new_business_pill">+ New business</string>
+    <string name="add">Add</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="done">Done</string>
+
+    <!-- Search -->
+    <string name="search_transactions_hint">Search transactions by name</string>
+    <string name="clear_search_cd">Clear search</string>
+    <string name="search_no_results">No transactions match \"%1$s\"</string>
+    <string name="no_matching_entries">No matching entries.</string>
+    <plurals name="search_results_count">
+        <item quantity="one">%1$d matching transaction</item>
+        <item quantity="other">%1$d matching transactions</item>
+    </plurals>
+
+    <!-- Validation errors -->
+    <string name="error_empty_name">Please enter a name</string>
+    <string name="error_invalid_amount">Enter a valid amount (0 or more)</string>
+
+    <!-- Hero & Summary -->
+    <string name="settings">Settings</string>
+    <string name="net_profit">Net profit</string>
+    <string name="still_to_recover">Still to recover</string>
+    <string name="progress_empty">Add your investment and revenue to see your progress</string>
+    <string name="progress_recovered_percent">Recovered %1$d%% of your investment</string>
+    <string name="progress_earned_back">Investment earned back %1$s times over</string>
+    <string name="progress_pure_profit">All revenue earned with zero investment logged</string>
+    <string name="summary_invested">Invested</string>
+    <string name="summary_earned">Earned</string>
+    <string name="summary_still_due">Still due</string>
+
+    <!-- Earnings by client -->
+    <string name="earnings_by_client">Earnings by client</string>
+    <string name="earnings_by_client_empty">Add revenue to see which clients pay you the most.</string>
+
+    <!-- Sections -->
+    <string name="section_investment">Investment</string>
+    <string name="section_revenue">Revenue</string>
+    <string name="section_money_due">Money due</string>
+    <string name="nothing_here_yet">Nothing here yet.</string>
+    <string name="add_investment">+ Add investment</string>
+    <string name="add_revenue">+ Add revenue</string>
+    <string name="add_money_due">+ Add money due</string>
+    <string name="entry_name_hint">Name</string>
+    <string name="entry_client_hint">Client or source</string>
+    <string name="amount_hint">₹ Amount</string>
+    <string name="received">Received</string>
+    <string name="delete_entry_cd">Delete %1$s</string>
+    <string name="entry_deleted_snackbar">Deleted \"%1$s\"</string>
+    <string name="undo">Undo</string>
+    <string name="moved_to_revenue_snackbar">Moved \"%1$s\" to Revenue</string>
+
+    <!-- Caution -->
+    <string name="caution_title">Caution</string>
+    <string name="caution_body">Your data is saved only on this device. If you change your device, clear your app data or uninstall the app, all your data can be deleted and cannot be recovered.</string>
+
+    <!-- Settings & Closed businesses -->
+    <string name="settings_title">Settings for %1$s</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_system">Auto</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="toggle_theme_cd">Toggle light or dark mode</string>
+    <string name="colour_theme">Colour theme</string>
+    <string name="export_csv_title">Export to CSV</string>
+    <string name="export_csv_desc">Save a local CSV backup of %1$s on your device.</string>
+    <string name="export_csv_success">Exported %1$d entries for \"%2$s\"</string>
+    <string name="export_csv_error">Could not export CSV file</string>
+    <string name="export_pdf_title">Export PDF report</string>
+    <string name="export_pdf_desc">Save a formatted PDF summary report of %1$s.</string>
+    <string name="export_pdf_success">Saved PDF report for \"%1$s\"</string>
+    <string name="export_pdf_error">Could not save PDF report</string>
+    <string name="backup_prompt_title">Backup your data</string>
+    <string name="backup_prompt_body_never">You haven\'t exported a backup in over 30 days. Save a CSV or PDF copy so your records stay safe.</string>
+    <string name="backup_prompt_body_days">Your last export was %1$d days ago. Save a fresh CSV or PDF backup to keep your records safe.</string>
+    <string name="backup_cta_csv">Export CSV</string>
+    <string name="backup_cta_pdf">Export PDF</string>
+    <string name="backup_last_today">Last backup: Today</string>
+    <string name="backup_last_one_day">Last backup: 1 day ago</string>
+    <string name="backup_last_days">Last backup: %1$d days ago</string>
+    <string name="backup_never">No backup exported yet</string>
+    <string name="delete_all_data">Delete all data</string>
+    <string name="delete_all_data_desc">Erases every entry of this business but keeps the business.</string>
+    <string name="close_business">Close business</string>
+    <string name="close_business_desc">Hides it from the tabs while keeping its data.</string>
+    <string name="closed_businesses">Closed businesses</string>
+    <string name="reopen">Reopen</string>
+    <string name="delete">Delete</string>
+
+    <!-- Dialogs -->
+    <string name="confirm_delete_all_title">Delete all data?</string>
+    <string name="confirm_delete_all_body">This will permanently erase all investment, revenue, and money due entries for %1$s. The business itself will remain.</string>
+    <string name="confirm_close_title">Close %1$s?</string>
+    <string name="confirm_close_body">This hides %1$s from your tabs while keeping all of its data. You can reopen it anytime from Settings.</string>
+    <string name="confirm_delete_business_title">Delete %1$s?</string>
+    <string name="confirm_delete_business_body">This permanently removes %1$s and all of its entries. This cannot be undone.</string>
+</resources>

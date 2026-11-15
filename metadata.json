@@ -1,0 +1,6 @@
+{
+  "name": "LeuFunds",
+  "description": "Offline money tracker for small businesses to track investments, revenue, and dues.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

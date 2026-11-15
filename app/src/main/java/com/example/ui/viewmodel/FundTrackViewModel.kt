@@ -1,0 +1,291 @@
+package com.example.ui.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.data.local.BusinessEntity
+import com.example.data.local.EntryEntity
+import com.example.data.local.EntryType
+import com.example.data.repository.FundTrackRepository
+import com.example.domain.BackupReminderPolicy
+import com.example.domain.BusinessThemePalette
+import com.example.domain.CsvExporter
+import com.example.domain.PdfReportGenerator
+import com.example.domain.ThemeMode
+import java.io.OutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class FundTrackViewModel(private val repository: FundTrackRepository) : ViewModel() {
+
+  private val _events = MutableSharedFlow<FundTrackEvent>()
+  val events: SharedFlow<FundTrackEvent> = _events.asSharedFlow()
+
+  private val activeSelectionFlow =
+    combine(repository.openBusinesses, repository.selectedBusinessId) { openList, savedId ->
+      if (openList.isEmpty()) {
+        null
+      } else {
+        openList.firstOrNull { it.id == savedId } ?: openList.first()
+      }
+    }
+
+  private val entriesForActiveBusinessFlow =
+    activeSelectionFlow.flatMapLatest { selectedBusiness ->
+      if (selectedBusiness == null) {
+        flowOf(emptyList())
+      } else {
+        repository.observeEntriesForBusiness(selectedBusiness.id)
+      }
+    }
+
+  val uiState: StateFlow<FundTrackUiState> =
+    combine(
+        repository.openBusinesses,
+        repository.closedBusinesses,
+        activeSelectionFlow,
+        entriesForActiveBusinessFlow,
+        repository.lastExportMillis,
+      ) { openList, closedList, selectedBusiness, entries, lastExportMillis ->
+        if (selectedBusiness == null || openList.isEmpty()) {
+          FundTrackUiState.FirstRun(closedBusinesses = closedList)
+        } else {
+          buildDashboardState(
+            openBusinesses = openList,
+            closedBusinesses = closedList,
+            selectedBusiness = selectedBusiness,
+            entries = entries,
+            lastExportMillis = lastExportMillis,
+          )
+        }
+      }
+      .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000L),
+        initialValue = FundTrackUiState.Loading,
+      )
+
+  val themeMode: StateFlow<ThemeMode> =
+    repository.themeMode.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000L),
+      initialValue = ThemeMode.SYSTEM,
+    )
+
+  fun setThemeMode(mode: ThemeMode) {
+    viewModelScope.launch { repository.setThemeMode(mode) }
+  }
+
+  fun createBusiness(name: String) {
+    val trimmed = name.trim()
+    if (trimmed.isEmpty()) return
+    viewModelScope.launch { repository.createBusiness(trimmed) }
+  }
+
+  fun selectBusiness(businessId: Long) {
+    viewModelScope.launch { repository.selectBusiness(businessId) }
+  }
+
+  fun updateBusinessTheme(businessId: Long, themeId: Int) {
+    viewModelScope.launch { repository.updateBusinessTheme(businessId, themeId) }
+  }
+
+  fun closeBusiness(businessId: Long) {
+    viewModelScope.launch { repository.closeBusiness(businessId) }
+  }
+
+  fun reopenBusiness(businessId: Long) {
+    viewModelScope.launch { repository.reopenBusiness(businessId) }
+  }
+
+  fun deleteBusiness(businessId: Long) {
+    viewModelScope.launch { repository.deleteBusiness(businessId) }
+  }
+
+  fun deleteAllBusinessData(businessId: Long) {
+    viewModelScope.launch { repository.deleteAllBusinessData(businessId) }
+  }
+
+  fun addEntry(businessId: Long, type: EntryType, name: String, amount: Double) {
+    val trimmed = name.trim()
+    if (trimmed.isEmpty() || amount < 0.0 || amount.isNaN() || amount.isInfinite()) return
+    viewModelScope.launch { repository.addEntry(businessId, type, trimmed, amount) }
+  }
+
+  fun deleteEntry(entry: EntryEntity) {
+    viewModelScope.launch {
+      repository.deleteEntry(entry.id)
+      _events.emit(FundTrackEvent.EntryDeleted(entry))
+    }
+  }
+
+  fun undoDeleteEntry(entry: EntryEntity) {
+    viewModelScope.launch { repository.restoreEntry(entry) }
+  }
+
+  fun markDueAsReceived(entry: EntryEntity) {
+    viewModelScope.launch {
+      repository.markDueAsReceived(entry.id)
+      _events.emit(FundTrackEvent.DueMarkedReceived(entry.name))
+    }
+  }
+
+  fun exportCurrentBusinessToCsv(openOutputStream: () -> OutputStream?) {
+    val dashboard = uiState.value as? FundTrackUiState.Dashboard
+    if (dashboard == null) {
+      viewModelScope.launch { _events.emit(FundTrackEvent.ExportError) }
+      return
+    }
+    val allEntries = dashboard.investmentEntries + dashboard.revenueEntries + dashboard.dueEntries
+    val csvContent = CsvExporter.buildBusinessCsv(dashboard.selectedBusiness, allEntries)
+
+    viewModelScope.launch {
+      val succeeded =
+        withContext(Dispatchers.IO) {
+          runCatching {
+              val stream = openOutputStream() ?: return@runCatching false
+              stream.use { it.write(csvContent.toByteArray(Charsets.UTF_8)) }
+              true
+            }
+            .getOrDefault(false)
+        }
+      if (succeeded) {
+        repository.recordExportCompleted()
+        _events.emit(
+          FundTrackEvent.ExportSuccess(
+            businessName = dashboard.selectedBusiness.name,
+            entryCount = allEntries.size,
+          )
+        )
+      } else {
+        _events.emit(FundTrackEvent.ExportError)
+      }
+    }
+  }
+
+  fun exportCurrentBusinessToPdf(openOutputStream: () -> OutputStream?) {
+    val dashboard = uiState.value as? FundTrackUiState.Dashboard
+    if (dashboard == null) {
+      viewModelScope.launch { _events.emit(FundTrackEvent.PdfExportError) }
+      return
+    }
+
+    viewModelScope.launch {
+      val succeeded =
+        withContext(Dispatchers.IO) {
+          runCatching {
+              val stream = openOutputStream() ?: return@runCatching false
+              stream.use { PdfReportGenerator.writeBusinessReportPdf(dashboard, it) }
+              true
+            }
+            .getOrDefault(false)
+        }
+      if (succeeded) {
+        repository.recordExportCompleted()
+        _events.emit(FundTrackEvent.PdfExportSuccess(dashboard.selectedBusiness.name))
+      } else {
+        _events.emit(FundTrackEvent.PdfExportError)
+      }
+    }
+  }
+
+  companion object {
+    fun buildDashboardState(
+      openBusinesses: List<BusinessEntity>,
+      closedBusinesses: List<BusinessEntity>,
+      selectedBusiness: BusinessEntity,
+      entries: List<EntryEntity>,
+      lastExportMillis: Long? = null,
+    ): FundTrackUiState.Dashboard {
+      val investments = entries.filter { it.type == EntryType.INVESTMENT }
+      val revenues = entries.filter { it.type == EntryType.REVENUE }
+      val dues = entries.filter { it.type == EntryType.DUE }
+
+      val totalInvestment = investments.sumOf { it.amount }
+      val totalRevenue = revenues.sumOf { it.amount }
+      val totalDue = dues.sumOf { it.amount }
+      val netProfit = totalRevenue - totalInvestment
+
+      val clientEarnings = computeClientEarnings(revenues)
+      val baselineCreatedAt = (openBusinesses + closedBusinesses).minOfOrNull { it.createdAt }
+      val backupStatus =
+        BackupReminderPolicy.evaluate(
+          lastExportMillis = lastExportMillis,
+          baselineCreatedAtMillis = baselineCreatedAt,
+          hasAnyEntries = entries.isNotEmpty(),
+        )
+
+      return FundTrackUiState.Dashboard(
+        openBusinesses = openBusinesses,
+        closedBusinesses = closedBusinesses,
+        selectedBusiness = selectedBusiness,
+        themePalette = BusinessThemePalette.fromId(selectedBusiness.themeId),
+        investmentEntries = investments,
+        revenueEntries = revenues,
+        dueEntries = dues,
+        totalInvestment = totalInvestment,
+        totalRevenue = totalRevenue,
+        totalDue = totalDue,
+        netProfit = netProfit,
+        clientEarnings = clientEarnings,
+        backupStatus = backupStatus,
+      )
+    }
+
+    fun computeClientEarnings(revenueEntries: List<EntryEntity>): List<ClientEarning> {
+      if (revenueEntries.isEmpty()) return emptyList()
+
+      data class Accumulator(val displayName: String, var total: Double)
+
+      val grouped = linkedMapOf<String, Accumulator>()
+      for (entry in revenueEntries) {
+        val cleanName = entry.name.trim()
+        val key = cleanName.lowercase()
+        val existing = grouped[key]
+        if (existing == null) {
+          grouped[key] = Accumulator(displayName = cleanName, total = entry.amount)
+        } else {
+          existing.total += entry.amount
+        }
+      }
+
+      val sorted = grouped.values.sortedByDescending { it.total }
+      val maxAmount = sorted.firstOrNull()?.total ?: 0.0
+      return sorted.map { acc ->
+        val fraction =
+          if (maxAmount > 0.0) {
+            (acc.total / maxAmount).toFloat().coerceIn(0f, 1f)
+          } else {
+            0f
+          }
+        ClientEarning(
+          displayName = acc.displayName,
+          totalAmount = acc.total,
+          fractionOfMax = fraction,
+        )
+      }
+    }
+  }
+
+  class Factory(private val repository: FundTrackRepository) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      if (modelClass.isAssignableFrom(FundTrackViewModel::class.java)) {
+        return FundTrackViewModel(repository) as T
+      }
+      throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+  }
+}
