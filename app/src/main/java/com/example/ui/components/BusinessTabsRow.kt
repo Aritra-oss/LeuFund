@@ -10,7 +10,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,8 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
@@ -191,24 +189,14 @@ fun BusinessTabsRow(
               )
             }
           }
-        val pillShadowTint =
-          if (isSelected) palette.accent.copy(alpha = 0.35f) else semanticColors.glassShadow
-
         Box(
           modifier =
             Modifier.heightIn(min = 48.dp)
-              .shadow(
-                elevation = if (isSelected) 6.dp else 4.dp,
-                shape = pillShape,
-                clip = false,
-                ambientColor = pillShadowTint,
-                spotColor = pillShadowTint,
-              )
               .clip(pillShape)
               .background(fillBrush)
               .border(width = 1.dp, brush = rimBrush, shape = pillShape)
               .semantics { selected = isSelected }
-              .clickable(role = Role.Tab) {
+              .futuristicClickable(role = Role.Tab) {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onSelectBusiness(business.id)
               }
@@ -241,21 +229,20 @@ fun BusinessTabsRow(
             Modifier.heightIn(min = 48.dp)
               .clip(pillShape)
               .background(semanticColors.glassFillEnd.copy(alpha = 0.45f))
-              .clickable(role = Role.Button) {
+              .futuristicClickable(role = Role.Button) {
                 isAddOpen = !isAddOpen
                 showNameError = false
               }
-              .drawBehind {
+              .drawWithCache {
+                val corner = CornerRadius(size.height / 2f, size.height / 2f)
                 val stroke =
                   Stroke(
                     width = 1.5.dp.toPx(),
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f),
                   )
-                drawRoundRect(
-                  color = dashColor,
-                  cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
-                  style = stroke,
-                )
+                onDrawBehind {
+                  drawRoundRect(color = dashColor, cornerRadius = corner, style = stroke)
+                }
               }
               .padding(horizontal = 16.dp, vertical = 12.dp)
               .testTag("new_business_pill"),

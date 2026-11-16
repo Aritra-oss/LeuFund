@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -26,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,17 +64,10 @@ fun QuickThemeToggleButton(
     modifier =
       modifier
         .size(48.dp)
-        .shadow(
-          elevation = 4.dp,
-          shape = CircleShape,
-          clip = false,
-          ambientColor = semanticColors.glassShadow,
-          spotColor = semanticColors.glassShadow,
-        )
         .clip(CircleShape)
         .background(fillBrush)
         .border(width = 1.dp, brush = rimBrush, shape = CircleShape)
-        .clickable(role = Role.Switch) {
+        .futuristicClickable(role = Role.Switch) {
           haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
           onToggle()
         }
@@ -135,17 +126,10 @@ fun PrivacyMaskToggleButton(
     modifier =
       modifier
         .size(48.dp)
-        .shadow(
-          elevation = 4.dp,
-          shape = CircleShape,
-          clip = false,
-          ambientColor = semanticColors.glassShadow,
-          spotColor = semanticColors.glassShadow,
-        )
         .clip(CircleShape)
         .background(fillBrush)
         .border(width = 1.dp, brush = rimBrush, shape = CircleShape)
-        .clickable(role = Role.Switch) {
+        .futuristicClickable(role = Role.Switch) {
           haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
           onToggle()
         }
@@ -256,7 +240,7 @@ private fun AppearanceOption(
           }
         )
         .semantics { selected = isSelected }
-        .clickable(role = Role.RadioButton, onClick = onClick),
+        .futuristicClickable(role = Role.RadioButton, onClick = onClick),
     contentAlignment = Alignment.Center,
   ) {
     Row(

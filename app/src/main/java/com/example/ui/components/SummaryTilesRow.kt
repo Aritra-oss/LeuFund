@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,17 +22,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -55,7 +59,7 @@ fun SummaryTilesRow(
   val maskedText = stringResource(R.string.masked_amount)
 
   Row(
-    modifier = modifier.fillMaxWidth(),
+    modifier = modifier.fillMaxWidth().graphicsLayer(),
     horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     SummaryTile(
@@ -111,8 +115,17 @@ private fun SummaryTile(
     remember(amount, isPrivacyMasked, maskedText) {
       if (isPrivacyMasked) maskedText else CurrencyFormatter.formatInr(amount)
     }
+  val targetShare = shareFraction.coerceIn(0f, 1f)
+  val animatedShare = remember(label) { Animatable(0f) }
+  LaunchedEffect(targetShare) {
+    animatedShare.animateTo(
+      targetValue = targetShare,
+      animationSpec = tween(durationMillis = 540, easing = FastOutSlowInEasing),
+    )
+  }
+
   val trackColor = contentColor.copy(alpha = 0.14f)
-  val fillColor = contentColor.copy(alpha = 0.78f)
+  val fillColor = contentColor.copy(alpha = 0.85f)
   val tileShape = RoundedCornerShape(22.dp)
   val fillBrush =
     remember(containerColor) {
@@ -123,20 +136,13 @@ private fun SummaryTile(
   val rimBrush =
     remember(semanticColors.glassRimStart, contentColor) {
       Brush.linearGradient(
-        colors = listOf(semanticColors.glassRimStart, contentColor.copy(alpha = 0.22f))
+        colors = listOf(semanticColors.glassRimStart, contentColor.copy(alpha = 0.25f))
       )
     }
 
   Box(
     modifier =
       modifier
-        .shadow(
-          elevation = 6.dp,
-          shape = tileShape,
-          clip = false,
-          ambientColor = semanticColors.glassShadow,
-          spotColor = semanticColors.glassShadow,
-        )
         .clip(tileShape)
         .background(fillBrush)
         .border(width = 1.dp, brush = rimBrush, shape = tileShape),
@@ -185,28 +191,34 @@ private fun SummaryTile(
         overflow = TextOverflow.Ellipsis,
       )
 
-      // Micro proportional volume bar drawn in drawBehind
+      // Cached draw-phase animated proportional volume bar
       Box(
         modifier =
           Modifier.fillMaxWidth()
             .padding(top = 2.dp)
-            .drawBehind {
+            .drawWithCache {
               val h = 4.dp.toPx()
-              val r = h / 2f
-              drawRoundRect(
-                color = trackColor,
-                topLeft = Offset.Zero,
-                size = Size(size.width, h),
-                cornerRadius = CornerRadius(r, r),
-              )
-              val clamped = shareFraction.coerceIn(0f, 1f)
-              if (clamped > 0f) {
-                drawRoundRect(
-                  color = fillColor,
-                  topLeft = Offset.Zero,
-                  size = Size(size.width * clamped.coerceAtLeast(0.08f), h),
-                  cornerRadius = CornerRadius(r, r),
+              val r = CornerRadius(h / 2f, h / 2f)
+              val barBrush =
+                Brush.horizontalGradient(
+                  colors = listOf(fillColor.copy(alpha = 0.55f), fillColor)
                 )
+              onDrawBehind {
+                drawRoundRect(
+                  color = trackColor,
+                  topLeft = Offset.Zero,
+                  size = Size(size.width, h),
+                  cornerRadius = r,
+                )
+                val clamped = animatedShare.value.coerceIn(0f, 1f)
+                if (clamped > 0.005f) {
+                  drawRoundRect(
+                    brush = barBrush,
+                    topLeft = Offset.Zero,
+                    size = Size(size.width * clamped.coerceAtLeast(0.08f), h),
+                    cornerRadius = r,
+                  )
+                }
               }
             }
             .padding(bottom = 4.dp)

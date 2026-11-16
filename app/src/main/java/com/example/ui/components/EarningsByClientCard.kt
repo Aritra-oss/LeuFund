@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,14 +16,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +37,7 @@ import com.example.R
 import com.example.domain.CurrencyFormatter
 import com.example.ui.theme.LocalFundTrackColors
 import com.example.ui.viewmodel.ClientEarning
+import kotlinx.coroutines.delay
 
 @Composable
 fun EarningsByClientCard(
@@ -43,8 +51,9 @@ fun EarningsByClientCard(
   val trackColor = semanticColors.glassRimEnd
 
   GlassCard(
-    modifier = modifier.fillMaxWidth().testTag("earnings_by_client_card"),
+    modifier = modifier.fillMaxWidth().graphicsLayer().testTag("earnings_by_client_card"),
     shape = RoundedCornerShape(26.dp),
+    shadowTint = accentColor,
   ) {
     Column(
       modifier = Modifier.padding(20.dp),
@@ -69,7 +78,16 @@ fun EarningsByClientCard(
             val displayTotal =
               if (isPrivacyMasked) maskedText
               else client.formattedAmount.ifEmpty { CurrencyFormatter.formatInr(client.totalAmount) }
-            val barFraction = client.fractionOfMax.coerceAtLeast(0.04f)
+            val targetFraction = client.fractionOfMax.coerceAtLeast(0.04f)
+            val animatedBar = remember(client.displayName) { Animatable(0f) }
+
+            LaunchedEffect(client.displayName, targetFraction) {
+              if (index in 1..6) delay((index * 55).toLong())
+              animatedBar.animateTo(
+                targetValue = targetFraction,
+                animationSpec = tween(durationMillis = 560, easing = FastOutSlowInEasing),
+              )
+            }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
               Row(
@@ -123,25 +141,34 @@ fun EarningsByClientCard(
                 )
               }
 
-              // Draw-phase horizontal progress bar (zero child Box layout pass)
+              // Cached draw-phase animated luminous progress bar
               Box(
                 modifier =
                   Modifier.fillMaxWidth()
                     .height(8.dp)
-                    .drawBehind {
-                      val radius = size.height / 2f
-                      drawRoundRect(
-                        color = trackColor,
-                        topLeft = Offset.Zero,
-                        size = size,
-                        cornerRadius = CornerRadius(radius, radius),
-                      )
-                      drawRoundRect(
-                        color = accentColor,
-                        topLeft = Offset.Zero,
-                        size = Size(width = size.width * barFraction, height = size.height),
-                        cornerRadius = CornerRadius(radius, radius),
-                      )
+                    .drawWithCache {
+                      val radius = CornerRadius(size.height / 2f, size.height / 2f)
+                      val barBrush =
+                        Brush.horizontalGradient(
+                          colors = listOf(accentColor.copy(alpha = 0.65f), accentColor)
+                        )
+                      onDrawBehind {
+                        drawRoundRect(
+                          color = trackColor,
+                          topLeft = Offset.Zero,
+                          size = size,
+                          cornerRadius = radius,
+                        )
+                        val fillWidth = size.width * animatedBar.value.coerceIn(0f, 1f)
+                        if (fillWidth > 0f) {
+                          drawRoundRect(
+                            brush = barBrush,
+                            topLeft = Offset.Zero,
+                            size = Size(width = fillWidth, height = size.height),
+                            cornerRadius = radius,
+                          )
+                        }
+                      }
                     }
               )
             }

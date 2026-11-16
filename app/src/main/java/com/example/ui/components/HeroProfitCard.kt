@@ -2,11 +2,15 @@ package com.example.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,23 +30,27 @@ import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,8 +64,11 @@ import com.example.domain.BusinessPulseMetrics
 import com.example.domain.BusinessThemePalette
 import com.example.domain.CurrencyFormatter
 import com.example.ui.theme.HeroSoftRed
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -77,14 +88,69 @@ fun HeroProfitCard(
   val isNegative = netProfit < 0.0
   val targetFraction = pulseMetrics.recoveryProgress
 
-  // Animate once on load (and smoothly update if business or values change)
+  // Animate recovery ring smoothly when switching business or when totals change
   val animatedProgress = remember(business.id) { Animatable(0f) }
   LaunchedEffect(business.id, targetFraction) {
     animatedProgress.animateTo(
       targetValue = targetFraction,
-      animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+      animationSpec = tween(durationMillis = 720, easing = FastOutSlowInEasing),
     )
   }
+
+  // Rolling double-precision telemetry interpolation for Net Profit
+  var startProfit by remember(business.id) { mutableDoubleStateOf(0.0) }
+  var displayedProfit by remember(business.id) { mutableDoubleStateOf(netProfit) }
+  val rollProgress = remember(business.id) { Animatable(1f) }
+  LaunchedEffect(business.id, netProfit) {
+    val initial = if (rollProgress.value < 1f) displayedProfit else startProfit
+    startProfit = initial
+    rollProgress.snapTo(0f)
+    rollProgress.animateTo(
+      targetValue = 1f,
+      animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+    ) {
+      displayedProfit =
+        if (value >= 0.999f) netProfit
+        else startProfit + (netProfit - startProfit) * value.toDouble()
+    }
+    startProfit = netProfit
+    displayedProfit = netProfit
+  }
+
+  val infiniteTransition = rememberInfiniteTransition(label = "hero_futuristic")
+  val shimmerFraction by
+    infiniteTransition.animateFloat(
+      initialValue = -0.35f,
+      targetValue = 1.45f,
+      animationSpec =
+        infiniteRepeatable(
+          animation = tween(durationMillis = 4_600, easing = FastOutSlowInEasing),
+          repeatMode = RepeatMode.Restart,
+        ),
+      label = "hero_shimmer_sweep",
+    )
+  val orbitRotation by
+    infiniteTransition.animateFloat(
+      initialValue = 0f,
+      targetValue = 360f,
+      animationSpec =
+        infiniteRepeatable(
+          animation = tween(durationMillis = 16_000, easing = LinearEasing),
+          repeatMode = RepeatMode.Restart,
+        ),
+      label = "hero_orbit_ring",
+    )
+  val pulseAlpha by
+    infiniteTransition.animateFloat(
+      initialValue = 0.35f,
+      targetValue = 1.0f,
+      animationSpec =
+        infiniteRepeatable(
+          animation = tween(durationMillis = 1_400, easing = FastOutSlowInEasing),
+          repeatMode = RepeatMode.Reverse,
+        ),
+      label = "hero_beacon_pulse",
+    )
 
   val progressText =
     when {
@@ -112,10 +178,11 @@ fun HeroProfitCard(
     }
 
   val maskedPlaceholder = stringResource(R.string.masked_amount)
+  val shownAmount = if (rollProgress.value >= 1f) netProfit else displayedProfit
   val formattedHeroAmount =
-    remember(netProfit, isNegative, isPrivacyMasked, maskedPlaceholder) {
+    remember(shownAmount, isPrivacyMasked, maskedPlaceholder) {
       if (isPrivacyMasked) maskedPlaceholder
-      else CurrencyFormatter.formatInr(if (isNegative) abs(netProfit) else netProfit)
+      else CurrencyFormatter.formatInr(if (shownAmount < 0.0) abs(shownAmount) else shownAmount)
     }
 
   val gradientBrush =
@@ -123,30 +190,25 @@ fun HeroProfitCard(
       Brush.linearGradient(
         colors =
           listOf(
-            themePalette.gradientStart.copy(alpha = 0.88f),
-            themePalette.gradientEnd.copy(alpha = 0.92f),
+            themePalette.gradientStart.copy(alpha = 0.92f),
+            themePalette.gradientEnd.copy(alpha = 0.96f),
           )
       )
     }
   val rimBrush =
     remember(themePalette) {
       Brush.linearGradient(
-        colors = listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.12f))
+        colors = listOf(Color.White.copy(alpha = 0.50f), themePalette.accentLightTint.copy(alpha = 0.24f))
       )
     }
+  val dashPathEffect = remember { PathEffect.dashPathEffect(floatArrayOf(8f, 10f), 0f) }
   val heroShape = RoundedCornerShape(30.dp)
 
   Box(
     modifier =
       modifier
         .fillMaxWidth()
-        .shadow(
-          elevation = 14.dp,
-          shape = heroShape,
-          clip = false,
-          ambientColor = themePalette.accent.copy(alpha = 0.45f),
-          spotColor = themePalette.accent.copy(alpha = 0.45f),
-        )
+        .graphicsLayer()
         .clip(heroShape)
         .background(gradientBrush)
         .border(width = 1.dp, brush = rimBrush, shape = heroShape)
@@ -156,31 +218,62 @@ fun HeroProfitCard(
       modifier =
         Modifier.fillMaxWidth()
           .drawBehind {
-            // Luminous radial corner highlight + crisp architectural contour arcs
-            val glowCenter = Offset(size.width * 0.88f, size.height * 0.14f)
+            val w = size.width
+            val h = size.height
+
+            // Luminous radial corner highlight + architectural HUD contours
+            val glowCenter = Offset(w * 0.88f, h * 0.14f)
             drawCircle(
               brush =
                 Brush.radialGradient(
-                  colors = listOf(themePalette.accentLightTint.copy(alpha = 0.24f), Color.Transparent),
+                  colors = listOf(themePalette.accentLightTint.copy(alpha = 0.26f), Color.Transparent),
                   center = glowCenter,
-                  radius = size.width * 0.65f,
+                  radius = w * 0.65f,
                 ),
               center = glowCenter,
-              radius = size.width * 0.65f,
+              radius = w * 0.65f,
             )
-            val arcColor = Color.White.copy(alpha = 0.055f)
+
+            // Holographic diagonal glass light-beam sweep
+            val beamX = w * shimmerFraction
+            drawRect(
+              brush =
+                Brush.linearGradient(
+                  colors =
+                    listOf(
+                      Color.Transparent,
+                      Color.White.copy(alpha = 0.075f),
+                      Color.Transparent,
+                    ),
+                  start = Offset(beamX - w * 0.28f, 0f),
+                  end = Offset(beamX + w * 0.28f, h),
+                )
+            )
+
+            // Precision contour rings
+            val arcColor = Color.White.copy(alpha = 0.065f)
             drawCircle(
               color = arcColor,
-              radius = size.width * 0.52f,
-              center = Offset(size.width * 0.96f, size.height * 0.10f),
+              radius = w * 0.50f,
+              center = Offset(w * 0.96f, h * 0.10f),
               style = Stroke(width = 1.dp.toPx()),
             )
             drawCircle(
               color = arcColor,
-              radius = size.width * 0.72f,
-              center = Offset(size.width * 0.96f, size.height * 0.10f),
+              radius = w * 0.72f,
+              center = Offset(w * 0.96f, h * 0.10f),
               style = Stroke(width = 1.dp.toPx()),
             )
+
+            // Subtle futuristic HUD corner brackets
+            val cInset = 14.dp.toPx()
+            val cLen = 11.dp.toPx()
+            val bracketColor = Color.White.copy(alpha = 0.22f)
+            val bw = 1.25.dp.toPx()
+            drawLine(bracketColor, Offset(cInset, cInset), Offset(cInset + cLen, cInset), strokeWidth = bw)
+            drawLine(bracketColor, Offset(cInset, cInset), Offset(cInset, cInset + cLen), strokeWidth = bw)
+            drawLine(bracketColor, Offset(w - cInset, h - cInset), Offset(w - cInset - cLen, h - cInset), strokeWidth = bw)
+            drawLine(bracketColor, Offset(w - cInset, h - cInset), Offset(w - cInset, h - cInset - cLen), strokeWidth = bw)
           }
           .padding(22.dp)
     ) {
@@ -200,7 +293,8 @@ fun HeroProfitCard(
               modifier =
                 Modifier.size(42.dp)
                   .clip(CircleShape)
-                  .background(Color.White.copy(alpha = 0.16f)),
+                  .background(Color.White.copy(alpha = 0.16f))
+                  .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape),
               contentAlignment = Alignment.Center,
             ) {
               Text(
@@ -225,23 +319,36 @@ fun HeroProfitCard(
                   netProfit >= 0.0 -> stringResource(R.string.status_profitable)
                   else -> stringResource(R.string.status_recovering)
                 }
-              Text(
-                text = healthLabel.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
-                color = themePalette.accentLightTint,
-              )
+              val beaconColor = if (isNegative) HeroSoftRed else themePalette.accentLightTint
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+              ) {
+                Box(
+                  modifier =
+                    Modifier.size(7.dp)
+                      .graphicsLayer { alpha = pulseAlpha }
+                      .clip(CircleShape)
+                      .background(beaconColor)
+                )
+                Text(
+                  text = healthLabel.uppercase(),
+                  style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.0.sp),
+                  color = beaconColor,
+                )
+              }
             }
           }
 
-          Surface(
-            shape = RoundedCornerShape(999.dp),
-            color = Color.White.copy(alpha = 0.14f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+          Box(
             modifier =
               Modifier.heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(999.dp))
-                .clickable(role = Role.Button, onClick = onOpenSettings)
+                .background(Color.White.copy(alpha = 0.14f))
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)), RoundedCornerShape(999.dp))
+                .futuristicClickable(role = Role.Button, onClick = onOpenSettings)
                 .testTag("settings_button"),
+            contentAlignment = Alignment.Center,
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -263,7 +370,7 @@ fun HeroProfitCard(
           }
         }
 
-        // Asymmetric hero body: giant figure on left + animated radial gauge on right
+        // Asymmetric hero body: giant telemetry figure on left + dual-track orbital gauge on right
         Row(
           modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically,
@@ -290,7 +397,6 @@ fun HeroProfitCard(
               modifier = Modifier.testTag("hero_net_profit_amount"),
             )
 
-            // ROI & Dues projection badges
             FlowRow(
               horizontalArrangement = Arrangement.spacedBy(8.dp),
               verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -319,15 +425,26 @@ fun HeroProfitCard(
             }
           }
 
-          // Animated Canvas Recovery Ring
+          // Classic Futuristic Dual-Ring Orbital Telemetry Gauge
           val arcColor = if (isNegative) HeroSoftRed else Color(0xFFA7F3D0)
           val trackColor = Color.White.copy(alpha = 0.16f)
+          val outerTickColor = Color.White.copy(alpha = 0.24f)
           Box(
             modifier =
-              Modifier.size(80.dp).drawBehind {
-                val strokeWidth = 7.dp.toPx()
-                val inset = strokeWidth / 2f
-                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+              Modifier.size(86.dp).drawBehind {
+                val outerRadius = (size.minDimension / 2f) - 1.5.dp.toPx()
+                rotate(degrees = orbitRotation) {
+                  drawCircle(
+                    color = outerTickColor,
+                    radius = outerRadius,
+                    style = Stroke(width = 1.25.dp.toPx(), pathEffect = dashPathEffect),
+                  )
+                }
+
+                val insetPad = 7.dp.toPx()
+                val strokeWidth = 6.5.dp.toPx()
+                val inset = insetPad + strokeWidth / 2f
+                val arcSize = Size(size.width - inset * 2f, size.height - inset * 2f)
                 val topLeft = Offset(inset, inset)
                 drawArc(
                   color = trackColor,
@@ -349,6 +466,20 @@ fun HeroProfitCard(
                     size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
                   )
+                  // Glowing endpoint telemetry beacon
+                  val endRad = ((-90f + sweep) * PI / 180.0)
+                  val center = Offset(size.width / 2f, size.height / 2f)
+                  val arcRadius = arcSize.width / 2f
+                  val dotPos =
+                    Offset(
+                      x = center.x + (cos(endRad) * arcRadius).toFloat(),
+                      y = center.y + (sin(endRad) * arcRadius).toFloat(),
+                    )
+                  drawCircle(
+                    color = Color.White.copy(alpha = 0.92f),
+                    radius = 3.dp.toPx(),
+                    center = dotPos,
+                  )
                 }
               },
             contentAlignment = Alignment.Center,
@@ -365,7 +496,7 @@ fun HeroProfitCard(
           }
         }
 
-        // Recovery progress strip + narrative
+        // Recovery progress strip + narrative + futuristic Summary pill
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           val progressFillColor = if (isNegative) HeroSoftRed else Color(0xFFA7F3D0)
           Box(
@@ -378,9 +509,13 @@ fun HeroProfitCard(
                   val fraction = animatedProgress.value.coerceIn(0f, 1f)
                   if (fraction > 0f) {
                     val radius = size.height / 2f
+                    val fillW = size.width * fraction
                     drawRoundRect(
-                      color = progressFillColor,
-                      size = Size(width = size.width * fraction, height = size.height),
+                      brush =
+                        Brush.horizontalGradient(
+                          colors = listOf(progressFillColor.copy(alpha = 0.78f), Color.White)
+                        ),
+                      size = Size(width = fillW, height = size.height),
                       cornerRadius = CornerRadius(radius, radius),
                     )
                   }
@@ -394,16 +529,20 @@ fun HeroProfitCard(
             modifier = Modifier.testTag("hero_progress_text"),
           )
 
-          Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White.copy(alpha = 0.14f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
+          Box(
             modifier =
               Modifier.fillMaxWidth()
                 .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .clickable(role = Role.Button, onClick = onOpenSummary)
+                .background(
+                  Brush.horizontalGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.10f))
+                  )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
+                .futuristicClickable(role = Role.Button, onClick = onOpenSummary)
                 .testTag("financial_summary_btn"),
+            contentAlignment = Alignment.CenterStart,
           ) {
             Row(
               modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
@@ -443,10 +582,11 @@ fun HeroProfitCard(
 
 @Composable
 private fun HeroMetricPill(text: String, tint: Color) {
-  Surface(
-    shape = RoundedCornerShape(999.dp),
-    color = Color.White.copy(alpha = 0.12f),
-    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+  Box(
+    modifier =
+      Modifier.clip(RoundedCornerShape(999.dp))
+        .background(Color.White.copy(alpha = 0.12f))
+        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(999.dp)),
   ) {
     Text(
       text = text,

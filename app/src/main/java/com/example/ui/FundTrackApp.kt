@@ -6,19 +6,19 @@ import android.content.ContextWrapper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -86,6 +86,7 @@ import com.example.ui.components.ProfitSimulatorSheet
 import com.example.ui.components.QuickEntryBottomSheet
 import com.example.ui.components.SettingsBottomSheet
 import com.example.ui.components.SummaryTilesRow
+import com.example.ui.components.futuristicPressScale
 import com.example.ui.components.ledgerSection
 import com.example.ui.theme.FundTrackTheme
 import com.example.ui.theme.LocalFundTrackColors
@@ -366,11 +367,12 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
               uiState is FundTrackUiState.Dashboard
           ) {
             val fabShape = RoundedCornerShape(999.dp)
+            val fabInteraction = remember { MutableInteractionSource() }
             val fabRimBrush =
               remember(activeThemePalette) {
                 Brush.linearGradient(
                   colors =
-                    listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.14f))
+                    listOf(Color.White.copy(alpha = 0.50f), activeThemePalette.accentLightTint.copy(alpha = 0.25f))
                 )
               }
             ExtendedFloatingActionButton(
@@ -378,8 +380,9 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
                 editingEntry = null
                 isQuickEntryOpen = true
               },
+              interactionSource = fabInteraction,
               shape = fabShape,
-              containerColor = activeAccentColor.copy(alpha = 0.92f),
+              containerColor = activeAccentColor.copy(alpha = 0.94f),
               contentColor = Color.White,
               icon = {
                 Icon(imageVector = Icons.Filled.Add, contentDescription = null)
@@ -391,12 +394,13 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
                 )
               },
               modifier =
-                Modifier.shadow(
-                    elevation = 12.dp,
+                Modifier.futuristicPressScale(fabInteraction, pressedScale = 0.95f)
+                  .shadow(
+                    elevation = 10.dp,
                     shape = fabShape,
                     clip = false,
-                    ambientColor = activeAccentColor.copy(alpha = 0.50f),
-                    spotColor = activeAccentColor.copy(alpha = 0.50f),
+                    ambientColor = activeAccentColor.copy(alpha = 0.45f),
+                    spotColor = activeAccentColor.copy(alpha = 0.45f),
                   )
                   .border(width = 1.dp, brush = fabRimBrush, shape = fabShape)
                   .testTag("quick_log_fab"),
@@ -667,9 +671,12 @@ private fun DashboardContent(
   val addRevenueLabel = stringResource(R.string.add_revenue)
   val dueTitle = stringResource(R.string.section_money_due)
   val addDueLabel = stringResource(R.string.add_money_due)
+  val maskedAmountLabel = stringResource(R.string.masked_amount)
+  val listState = rememberLazyListState()
 
   Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     LazyColumn(
+      state = listState,
       modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
       contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
     ) {
@@ -758,9 +765,6 @@ private fun DashboardContent(
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.INVESTMENT
       ) {
-        item(key = "spacer_investment", contentType = "spacer") {
-          Spacer(modifier = Modifier.height(16.dp))
-        }
         ledgerSection(
           businessId = state.selectedBusiness.id,
           type = EntryType.INVESTMENT,
@@ -774,6 +778,7 @@ private fun DashboardContent(
           badgeContainerColor = semanticColors.softRedContainer,
           badgeContentColor = semanticColors.softRedContent,
           isPrivacyMasked = isPrivacyMasked,
+          maskedAmountLabel = maskedAmountLabel,
           emptyMessage = filteredEmptyMsg,
           onAddEntry = onAddInvestment,
           onEditEntry = onEditEntry,
@@ -785,9 +790,6 @@ private fun DashboardContent(
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.REVENUE
       ) {
-        item(key = "spacer_revenue", contentType = "spacer") {
-          Spacer(modifier = Modifier.height(16.dp))
-        }
         ledgerSection(
           businessId = state.selectedBusiness.id,
           type = EntryType.REVENUE,
@@ -800,6 +802,7 @@ private fun DashboardContent(
           badgeContainerColor = semanticColors.softGreenContainer,
           badgeContentColor = semanticColors.softGreenContent,
           isPrivacyMasked = isPrivacyMasked,
+          maskedAmountLabel = maskedAmountLabel,
           emptyMessage = filteredEmptyMsg,
           onAddEntry = onAddRevenue,
           onEditEntry = onEditEntry,
@@ -811,9 +814,6 @@ private fun DashboardContent(
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.DUE
       ) {
-        item(key = "spacer_due", contentType = "spacer") {
-          Spacer(modifier = Modifier.height(16.dp))
-        }
         ledgerSection(
           businessId = state.selectedBusiness.id,
           type = EntryType.DUE,
@@ -826,6 +826,7 @@ private fun DashboardContent(
           badgeContainerColor = semanticColors.softAmberContainer,
           badgeContentColor = semanticColors.softAmberContent,
           isPrivacyMasked = isPrivacyMasked,
+          maskedAmountLabel = maskedAmountLabel,
           emptyMessage = filteredEmptyMsg,
           onAddEntry = onAddDue,
           onEditEntry = onEditEntry,

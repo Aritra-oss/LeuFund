@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -36,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,10 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -78,8 +80,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Emits a cohesive rounded-card section directly into the parent [LazyColumn] so each
- * transaction row is individually virtualized and recycled at full display refresh rate.
+ * Emits a cohesive classic-futuristic glass section directly into the parent [LazyColumn] with
+ * zero allocation `drawWithCache` borders and deferred inline-form composition so scrolling
+ * across sections stays locked at full display refresh rate.
  */
 fun LazyListScope.ledgerSection(
   businessId: Long,
@@ -92,6 +95,7 @@ fun LazyListScope.ledgerSection(
   badgeContainerColor: Color,
   badgeContentColor: Color,
   isPrivacyMasked: Boolean,
+  maskedAmountLabel: String,
   emptyMessage: String?,
   onAddEntry: (name: String, amount: Double) -> Unit,
   onEditEntry: (EntryEntity) -> Unit,
@@ -108,6 +112,7 @@ fun LazyListScope.ledgerSection(
       totalAmount = totalAmount,
       markerColor = markerColor,
       isPrivacyMasked = isPrivacyMasked,
+      maskedAmountLabel = maskedAmountLabel,
     )
   }
 
@@ -128,9 +133,11 @@ fun LazyListScope.ledgerSection(
         badgeContainerColor = badgeContainerColor,
         badgeContentColor = badgeContentColor,
         isPrivacyMasked = isPrivacyMasked,
+        maskedAmountLabel = maskedAmountLabel,
         onEdit = onEditEntry,
         onDelete = onDeleteEntry,
         onMarkReceived = onMarkDueReceived,
+        modifier = Modifier.animateItem(),
       )
     }
   }
@@ -153,13 +160,13 @@ private fun LedgerSectionHeader(
   totalAmount: Double,
   markerColor: Color,
   isPrivacyMasked: Boolean,
+  maskedAmountLabel: String,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val borderColor = semanticColors.glassRimStart
-  val maskedText = stringResource(R.string.masked_amount)
   val formattedTotal =
-    remember(totalAmount, isPrivacyMasked, maskedText) {
-      if (isPrivacyMasked) maskedText else CurrencyFormatter.formatInr(totalAmount)
+    remember(totalAmount, isPrivacyMasked, maskedAmountLabel) {
+      if (isPrivacyMasked) maskedAmountLabel else CurrencyFormatter.formatInr(totalAmount)
     }
   val fillBrush =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
@@ -171,7 +178,7 @@ private fun LedgerSectionHeader(
   Box(
     modifier =
       Modifier.fillMaxWidth()
-        .padding(horizontal = 16.dp)
+        .padding(start = 16.dp, end = 16.dp, top = 16.dp)
         .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
         .background(fillBrush)
         .testTag("section_card_${type.name.lowercase()}"),
@@ -188,18 +195,24 @@ private fun LedgerSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
+        // Futuristic glowing neon vertical telemetry strip
         Box(
           modifier =
-            Modifier.size(12.dp).clip(RoundedCornerShape(4.dp)).background(markerColor)
+            Modifier.width(4.dp)
+              .height(18.dp)
+              .clip(RoundedCornerShape(999.dp))
+              .background(markerColor)
         )
         Text(
           text = title,
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onSurface,
         )
-        Surface(
-          shape = RoundedCornerShape(999.dp),
-          color = semanticColors.glassElevatedStart.copy(alpha = 0.7f),
+        Box(
+          modifier =
+            Modifier.clip(RoundedCornerShape(999.dp))
+              .background(semanticColors.glassElevatedStart.copy(alpha = 0.72f))
+              .border(1.dp, borderColor.copy(alpha = 0.45f), RoundedCornerShape(999.dp)),
         ) {
           Text(
             text = itemCount.toString(),
@@ -260,15 +273,16 @@ private fun LedgerVirtualizedEntryRow(
   badgeContainerColor: Color,
   badgeContentColor: Color,
   isPrivacyMasked: Boolean,
+  maskedAmountLabel: String,
   onEdit: (EntryEntity) -> Unit,
   onDelete: (EntryEntity) -> Unit,
   onMarkReceived: ((EntryEntity) -> Unit)?,
+  modifier: Modifier = Modifier,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val haptics = LocalHapticFeedback.current
   val entry = model.entry
-  val displayAmount =
-    if (isPrivacyMasked) stringResource(R.string.masked_amount) else model.formattedAmount
+  val displayAmount = if (isPrivacyMasked) maskedAmountLabel else model.formattedAmount
   val fillBrush =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
       Brush.horizontalGradient(
@@ -278,7 +292,8 @@ private fun LedgerVirtualizedEntryRow(
 
   Box(
     modifier =
-      Modifier.fillMaxWidth()
+      modifier
+        .fillMaxWidth()
         .padding(horizontal = 16.dp)
         .background(fillBrush)
         .clickable { onEdit(entry) }
@@ -286,7 +301,8 @@ private fun LedgerVirtualizedEntryRow(
   ) {
     Column(modifier = Modifier.fillMaxWidth().drawSideBorders(semanticColors.glassRimStart)) {
       Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        modifier =
+          Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
@@ -294,7 +310,8 @@ private fun LedgerVirtualizedEntryRow(
           modifier =
             Modifier.size(40.dp)
               .clip(RoundedCornerShape(12.dp))
-              .background(badgeContainerColor),
+              .background(badgeContainerColor)
+              .border(1.dp, badgeContentColor.copy(alpha = 0.22f), RoundedCornerShape(12.dp)),
           contentAlignment = Alignment.Center,
         ) {
           Text(
@@ -387,7 +404,6 @@ private fun LedgerVirtualizedEntryRow(
   }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LedgerSectionFooter(
   businessId: Long,
@@ -396,42 +412,7 @@ private fun LedgerSectionFooter(
   onAddEntry: (name: String, amount: Double) -> Unit,
 ) {
   val semanticColors = LocalFundTrackColors.current
-  val haptics = LocalHapticFeedback.current
-  val coroutineScope = rememberCoroutineScope()
-  val formBringIntoViewRequester = remember { BringIntoViewRequester() }
-
   var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
-  var nameInput by rememberSaveable(businessId, type) { mutableStateOf("") }
-  var amountInput by rememberSaveable(businessId, type) { mutableStateOf("") }
-  var nameError by rememberSaveable(businessId, type) { mutableStateOf(false) }
-  var amountError by rememberSaveable(businessId, type) { mutableStateOf(false) }
-
-  LaunchedEffect(isFormOpen) {
-    if (isFormOpen) {
-      delay(160)
-      formBringIntoViewRequester.bringIntoView()
-    }
-  }
-
-  fun submitEntry() {
-    val cleanName = nameInput.trim()
-    val parsedAmount = CurrencyFormatter.parseValidAmount(amountInput)
-    val invalidName = cleanName.isEmpty()
-    val invalidAmount = parsedAmount == null
-
-    nameError = invalidName
-    amountError = invalidAmount
-
-    if (!invalidName && !invalidAmount && parsedAmount != null) {
-      haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-      onAddEntry(cleanName, parsedAmount)
-      nameInput = ""
-      amountInput = ""
-      nameError = false
-      amountError = false
-      isFormOpen = false
-    }
-  }
 
   val footerFillBrush =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
@@ -439,16 +420,7 @@ private fun LedgerSectionFooter(
         colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
       )
     }
-  val inlineFormBrush =
-    remember(semanticColors.glassElevatedStart, semanticColors.glassElevatedEnd) {
-      Brush.linearGradient(
-        colors = listOf(semanticColors.glassElevatedStart, semanticColors.glassElevatedEnd)
-      )
-    }
-  val inlineRimBrush =
-    remember(semanticColors.glassRimStart, semanticColors.glassRimEnd) {
-      Brush.linearGradient(colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd))
-    }
+  val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
 
   Box(
     modifier =
@@ -469,132 +441,35 @@ private fun LedgerSectionFooter(
         enter = fadeIn(tween(140)) + expandVertically(tween(160)),
         exit = fadeOut(tween(120)) + shrinkVertically(tween(140)),
       ) {
-        val inlineShape = RoundedCornerShape(18.dp)
-        Column(
-          modifier =
-            Modifier.fillMaxWidth()
-              .bringIntoViewRequester(formBringIntoViewRequester)
-              .clip(inlineShape)
-              .background(inlineFormBrush)
-              .border(width = 1.dp, brush = inlineRimBrush, shape = inlineShape)
-              .padding(14.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-          OutlinedTextField(
-            value = nameInput,
-            onValueChange = {
-              nameInput = it
-              if (nameError && it.trim().isNotEmpty()) nameError = false
-            },
-            label = {
-              Text(
-                if (type == EntryType.INVESTMENT) stringResource(R.string.entry_name_hint)
-                else stringResource(R.string.entry_client_hint)
-              )
-            },
-            singleLine = true,
-            isError = nameError,
-            supportingText =
-              if (nameError) {
-                { Text(stringResource(R.string.error_empty_name)) }
-              } else null,
-            keyboardOptions =
-              KeyboardOptions(
-                capitalization = KeyboardCapitalization.Words,
-                imeAction = ImeAction.Next,
-              ),
-            shape = RoundedCornerShape(14.dp),
-            modifier =
-              Modifier.fillMaxWidth()
-                .onFocusChanged { focusState ->
-                  if (focusState.isFocused) {
-                    coroutineScope.launch {
-                      delay(180)
-                      formBringIntoViewRequester.bringIntoView()
-                    }
-                  }
-                }
-                .testTag("entry_name_input_${type.name.lowercase()}"),
-          )
-
-          OutlinedTextField(
-            value = amountInput,
-            onValueChange = { raw ->
-              val filtered = sanitizeDecimalAmount(raw)
-              amountInput = filtered
-              if (amountError && CurrencyFormatter.parseValidAmount(filtered) != null) {
-                amountError = false
-              }
-            },
-            label = { Text(stringResource(R.string.amount_hint)) },
-            singleLine = true,
-            isError = amountError,
-            supportingText =
-              if (amountError) {
-                { Text(stringResource(R.string.error_invalid_amount)) }
-              } else null,
-            keyboardOptions =
-              KeyboardOptions(
-                keyboardType = KeyboardType.Decimal,
-                imeAction = ImeAction.Done,
-              ),
-            keyboardActions = KeyboardActions(onDone = { submitEntry() }),
-            shape = RoundedCornerShape(14.dp),
-            modifier =
-              Modifier.fillMaxWidth()
-                .onFocusChanged { focusState ->
-                  if (focusState.isFocused) {
-                    coroutineScope.launch {
-                      delay(180)
-                      formBringIntoViewRequester.bringIntoView()
-                    }
-                  }
-                }
-                .testTag("entry_amount_input_${type.name.lowercase()}"),
-          )
-
-          Button(
-            onClick = { submitEntry() },
-            shape = RoundedCornerShape(14.dp),
-            colors =
-              ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-              ),
-            modifier =
-              Modifier.fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .testTag("save_entry_btn_${type.name.lowercase()}"),
-          ) {
-            Text(stringResource(R.string.save), fontWeight = FontWeight.SemiBold)
-          }
-        }
+        InlineEntryFormCard(
+          businessId = businessId,
+          type = type,
+          onSave = { name, amount ->
+            onAddEntry(name, amount)
+            isFormOpen = false
+          },
+        )
       }
 
-      val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
       Box(
         modifier =
           Modifier.fillMaxWidth()
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button) {
+            .futuristicClickable(role = Role.Button) {
               isFormOpen = !isFormOpen
-              if (!isFormOpen) {
-                nameError = false
-                amountError = false
-              }
             }
-            .drawBehind {
+            .drawWithCache {
               val radius = 16.dp.toPx()
-              drawRoundRect(
-                color = dashColor,
-                cornerRadius = CornerRadius(radius, radius),
-                style =
-                  Stroke(
-                    width = 1.5.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f),
-                  ),
-              )
+              val corner = CornerRadius(radius, radius)
+              val stroke =
+                Stroke(
+                  width = 1.5.dp.toPx(),
+                  pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f),
+                )
+              onDrawBehind {
+                drawRoundRect(color = dashColor, cornerRadius = corner, style = stroke)
+              }
             }
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("toggle_add_btn_${type.name.lowercase()}"),
@@ -610,98 +485,263 @@ private fun LedgerSectionFooter(
   }
 }
 
-private fun Modifier.drawSideBorders(borderColor: Color): Modifier =
-  this.drawBehind {
-    val w = 1.dp.toPx()
-    drawLine(borderColor, Offset(w / 2f, 0f), Offset(w / 2f, size.height), strokeWidth = w)
-    drawLine(
-      borderColor,
-      Offset(size.width - w / 2f, 0f),
-      Offset(size.width - w / 2f, size.height),
-      strokeWidth = w,
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun InlineEntryFormCard(
+  businessId: Long,
+  type: EntryType,
+  onSave: (name: String, amount: Double) -> Unit,
+) {
+  val semanticColors = LocalFundTrackColors.current
+  val haptics = LocalHapticFeedback.current
+  val coroutineScope = rememberCoroutineScope()
+  val formBringIntoViewRequester = remember { BringIntoViewRequester() }
+
+  var nameInput by rememberSaveable(businessId, type) { mutableStateOf("") }
+  var amountInput by rememberSaveable(businessId, type) { mutableStateOf("") }
+  var nameError by rememberSaveable(businessId, type) { mutableStateOf(false) }
+  var amountError by rememberSaveable(businessId, type) { mutableStateOf(false) }
+
+  LaunchedEffect(Unit) {
+    delay(160)
+    formBringIntoViewRequester.bringIntoView()
+  }
+
+  fun submitEntry() {
+    val cleanName = nameInput.trim()
+    val parsedAmount = CurrencyFormatter.parseValidAmount(amountInput)
+    val invalidName = cleanName.isEmpty()
+    val invalidAmount = parsedAmount == null
+
+    nameError = invalidName
+    amountError = invalidAmount
+
+    if (!invalidName && !invalidAmount && parsedAmount != null) {
+      haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+      onSave(cleanName, parsedAmount)
+      nameInput = ""
+      amountInput = ""
+      nameError = false
+      amountError = false
+    }
+  }
+
+  val inlineFormBrush =
+    remember(semanticColors.glassElevatedStart, semanticColors.glassElevatedEnd) {
+      Brush.linearGradient(
+        colors = listOf(semanticColors.glassElevatedStart, semanticColors.glassElevatedEnd)
+      )
+    }
+  val inlineRimBrush =
+    remember(semanticColors.glassRimStart, semanticColors.glassRimEnd) {
+      Brush.linearGradient(colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd))
+    }
+  val inlineShape = RoundedCornerShape(18.dp)
+
+  Column(
+    modifier =
+      Modifier.fillMaxWidth()
+        .bringIntoViewRequester(formBringIntoViewRequester)
+        .clip(inlineShape)
+        .background(inlineFormBrush)
+        .border(width = 1.dp, brush = inlineRimBrush, shape = inlineShape)
+        .padding(14.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    OutlinedTextField(
+      value = nameInput,
+      onValueChange = {
+        nameInput = it
+        if (nameError && it.trim().isNotEmpty()) nameError = false
+      },
+      label = {
+        Text(
+          if (type == EntryType.INVESTMENT) stringResource(R.string.entry_name_hint)
+          else stringResource(R.string.entry_client_hint)
+        )
+      },
+      singleLine = true,
+      isError = nameError,
+      supportingText =
+        if (nameError) {
+          { Text(stringResource(R.string.error_empty_name)) }
+        } else null,
+      keyboardOptions =
+        KeyboardOptions(
+          capitalization = KeyboardCapitalization.Words,
+          imeAction = ImeAction.Next,
+        ),
+      shape = RoundedCornerShape(14.dp),
+      modifier =
+        Modifier.fillMaxWidth()
+          .onFocusChanged { focusState ->
+            if (focusState.isFocused) {
+              coroutineScope.launch {
+                delay(180)
+                formBringIntoViewRequester.bringIntoView()
+              }
+            }
+          }
+          .testTag("entry_name_input_${type.name.lowercase()}"),
     )
+
+    OutlinedTextField(
+      value = amountInput,
+      onValueChange = { raw ->
+        val filtered = sanitizeDecimalAmount(raw)
+        amountInput = filtered
+        if (amountError && CurrencyFormatter.parseValidAmount(filtered) != null) {
+          amountError = false
+        }
+      },
+      label = { Text(stringResource(R.string.amount_hint)) },
+      singleLine = true,
+      isError = amountError,
+      supportingText =
+        if (amountError) {
+          { Text(stringResource(R.string.error_invalid_amount)) }
+        } else null,
+      keyboardOptions =
+        KeyboardOptions(
+          keyboardType = KeyboardType.Decimal,
+          imeAction = ImeAction.Done,
+        ),
+      keyboardActions = KeyboardActions(onDone = { submitEntry() }),
+      shape = RoundedCornerShape(14.dp),
+      modifier =
+        Modifier.fillMaxWidth()
+          .onFocusChanged { focusState ->
+            if (focusState.isFocused) {
+              coroutineScope.launch {
+                delay(180)
+                formBringIntoViewRequester.bringIntoView()
+              }
+            }
+          }
+          .testTag("entry_amount_input_${type.name.lowercase()}"),
+    )
+
+    Button(
+      onClick = { submitEntry() },
+      shape = RoundedCornerShape(14.dp),
+      colors =
+        ButtonDefaults.buttonColors(
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = Color.White,
+        ),
+      modifier =
+        Modifier.fillMaxWidth()
+          .heightIn(min = 48.dp)
+          .testTag("save_entry_btn_${type.name.lowercase()}"),
+    ) {
+      Text(stringResource(R.string.save), fontWeight = FontWeight.SemiBold)
+    }
+  }
+}
+
+private fun Modifier.drawSideBorders(borderColor: Color): Modifier =
+  this.drawWithCache {
+    val w = 1.dp.toPx()
+    val halfW = w / 2f
+    onDrawBehind {
+      drawLine(borderColor, Offset(halfW, 0f), Offset(halfW, size.height), strokeWidth = w)
+      drawLine(
+        borderColor,
+        Offset(size.width - halfW, 0f),
+        Offset(size.width - halfW, size.height),
+        strokeWidth = w,
+      )
+    }
   }
 
 private fun Modifier.drawCardSideAndTopBorders(
   borderColor: Color,
   cornerRadiusDp: Float,
 ): Modifier =
-  this.drawBehind {
+  this.drawWithCache {
     val strokeW = 1.dp.toPx()
     val r = cornerRadiusDp.dp.toPx()
     val inset = strokeW / 2f
-    drawLine(borderColor, Offset(inset, r), Offset(inset, size.height), strokeWidth = strokeW)
-    drawLine(
-      borderColor,
-      Offset(size.width - inset, r),
-      Offset(size.width - inset, size.height),
-      strokeWidth = strokeW,
-    )
-    drawLine(borderColor, Offset(r, inset), Offset(size.width - r, inset), strokeWidth = strokeW)
-    drawArc(
-      color = borderColor,
-      startAngle = 180f,
-      sweepAngle = 90f,
-      useCenter = false,
-      topLeft = Offset(inset, inset),
-      size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
-      style = Stroke(width = strokeW),
-    )
-    drawArc(
-      color = borderColor,
-      startAngle = 270f,
-      sweepAngle = 90f,
-      useCenter = false,
-      topLeft = Offset(size.width - r * 2 - inset, inset),
-      size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
-      style = Stroke(width = strokeW),
-    )
+    val strokeStyle = Stroke(width = strokeW)
+    val arcSize = Size(r * 2f, r * 2f)
+    onDrawBehind {
+      drawLine(borderColor, Offset(inset, r), Offset(inset, size.height), strokeWidth = strokeW)
+      drawLine(
+        borderColor,
+        Offset(size.width - inset, r),
+        Offset(size.width - inset, size.height),
+        strokeWidth = strokeW,
+      )
+      drawLine(borderColor, Offset(r, inset), Offset(size.width - r, inset), strokeWidth = strokeW)
+      drawArc(
+        color = borderColor,
+        startAngle = 180f,
+        sweepAngle = 90f,
+        useCenter = false,
+        topLeft = Offset(inset, inset),
+        size = arcSize,
+        style = strokeStyle,
+      )
+      drawArc(
+        color = borderColor,
+        startAngle = 270f,
+        sweepAngle = 90f,
+        useCenter = false,
+        topLeft = Offset(size.width - r * 2f - inset, inset),
+        size = arcSize,
+        style = strokeStyle,
+      )
+    }
   }
 
 private fun Modifier.drawCardSideAndBottomBorders(
   borderColor: Color,
   cornerRadiusDp: Float,
 ): Modifier =
-  this.drawBehind {
+  this.drawWithCache {
     val strokeW = 1.dp.toPx()
     val r = cornerRadiusDp.dp.toPx()
     val inset = strokeW / 2f
-    drawLine(
-      borderColor,
-      Offset(inset, 0f),
-      Offset(inset, size.height - r),
-      strokeWidth = strokeW,
-    )
-    drawLine(
-      borderColor,
-      Offset(size.width - inset, 0f),
-      Offset(size.width - inset, size.height - r),
-      strokeWidth = strokeW,
-    )
-    drawLine(
-      borderColor,
-      Offset(r, size.height - inset),
-      Offset(size.width - r, size.height - inset),
-      strokeWidth = strokeW,
-    )
-    drawArc(
-      color = borderColor,
-      startAngle = 90f,
-      sweepAngle = 90f,
-      useCenter = false,
-      topLeft = Offset(inset, size.height - r * 2 - inset),
-      size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
-      style = Stroke(width = strokeW),
-    )
-    drawArc(
-      color = borderColor,
-      startAngle = 0f,
-      sweepAngle = 90f,
-      useCenter = false,
-      topLeft = Offset(size.width - r * 2 - inset, size.height - r * 2 - inset),
-      size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
-      style = Stroke(width = strokeW),
-    )
+    val strokeStyle = Stroke(width = strokeW)
+    val arcSize = Size(r * 2f, r * 2f)
+    onDrawBehind {
+      drawLine(
+        borderColor,
+        Offset(inset, 0f),
+        Offset(inset, size.height - r),
+        strokeWidth = strokeW,
+      )
+      drawLine(
+        borderColor,
+        Offset(size.width - inset, 0f),
+        Offset(size.width - inset, size.height - r),
+        strokeWidth = strokeW,
+      )
+      drawLine(
+        borderColor,
+        Offset(r, size.height - inset),
+        Offset(size.width - r, size.height - inset),
+        strokeWidth = strokeW,
+      )
+      drawArc(
+        color = borderColor,
+        startAngle = 90f,
+        sweepAngle = 90f,
+        useCenter = false,
+        topLeft = Offset(inset, size.height - r * 2f - inset),
+        size = arcSize,
+        style = strokeStyle,
+      )
+      drawArc(
+        color = borderColor,
+        startAngle = 0f,
+        sweepAngle = 90f,
+        useCenter = false,
+        topLeft = Offset(size.width - r * 2f - inset, size.height - r * 2f - inset),
+        size = arcSize,
+        style = strokeStyle,
+      )
+    }
   }
 
 internal fun sanitizeDecimalAmount(input: String): String {

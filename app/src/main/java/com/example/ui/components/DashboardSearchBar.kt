@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -77,16 +75,7 @@ fun DashboardSearchBar(
 
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Box(
-      modifier =
-        Modifier.fillMaxWidth()
-          .padding(horizontal = 16.dp)
-          .shadow(
-            elevation = 6.dp,
-            shape = searchShape,
-            clip = false,
-            ambientColor = semanticColors.glassShadow,
-            spotColor = semanticColors.glassShadow,
-          )
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
       OutlinedTextField(
         value = query,
@@ -223,17 +212,10 @@ fun DashboardSearchBar(
         Box(
           modifier =
             Modifier.heightIn(min = 48.dp)
-              .shadow(
-                elevation = 4.dp,
-                shape = sortShape,
-                clip = false,
-                ambientColor = semanticColors.glassShadow,
-                spotColor = semanticColors.glassShadow,
-              )
               .clip(sortShape)
               .background(sortFillBrush)
               .border(width = 1.dp, brush = sortRimBrush, shape = sortShape)
-              .clickable(role = Role.Button, onClick = onToggleSort)
+              .futuristicClickable(role = Role.Button, onClick = onToggleSort)
               .testTag("sort_order_toggle"),
           contentAlignment = Alignment.Center,
         ) {
@@ -325,24 +307,14 @@ private fun FilterChipPill(
         )
       }
     }
-  val shadowTint =
-    if (isSelected) accentColor.copy(alpha = 0.35f) else semanticColors.glassShadow
-
   Box(
     modifier =
       Modifier.heightIn(min = 48.dp)
-        .shadow(
-          elevation = if (isSelected) 6.dp else 4.dp,
-          shape = pillShape,
-          clip = false,
-          ambientColor = shadowTint,
-          spotColor = shadowTint,
-        )
         .clip(pillShape)
         .background(fillBrush)
         .border(width = 1.dp, brush = rimBrush, shape = pillShape)
         .semantics { selected = isSelected }
-        .clickable(role = Role.Tab, onClick = onClick)
+        .futuristicClickable(role = Role.Tab, onClick = onClick)
         .testTag(testTag),
     contentAlignment = Alignment.Center,
   ) {

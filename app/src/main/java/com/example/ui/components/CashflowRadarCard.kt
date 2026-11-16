@@ -1,8 +1,16 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +25,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoGraph
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,8 +37,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -54,10 +67,40 @@ fun CashflowRadarCard(
   val revColor = accentColor
   val dueColor = semanticColors.softAmberContent
   val emptyTrackColor = semanticColors.cardBorder
+  val innerRingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.24f)
+
+  val sweepAnim = remember { Animatable(0f) }
+  LaunchedEffect(
+    pulseMetrics.investmentShare,
+    pulseMetrics.revenueShare,
+    pulseMetrics.dueShare,
+    pulseMetrics.totalCashflowVolume,
+  ) {
+    sweepAnim.snapTo(0f)
+    sweepAnim.animateTo(
+      targetValue = 1f,
+      animationSpec = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+    )
+  }
+
+  val infiniteTransition = rememberInfiniteTransition(label = "radar_ring_orbit")
+  val radarOrbitAngle by
+    infiniteTransition.animateFloat(
+      initialValue = 0f,
+      targetValue = 360f,
+      animationSpec =
+        infiniteRepeatable(
+          animation = tween(durationMillis = 20_000, easing = LinearEasing),
+          repeatMode = RepeatMode.Restart,
+        ),
+      label = "radar_inner_orbit",
+    )
+  val innerDash = remember { PathEffect.dashPathEffect(floatArrayOf(4f, 8f), 0f) }
 
   GlassCard(
-    modifier = modifier.fillMaxWidth().testTag("cashflow_radar_card"),
+    modifier = modifier.fillMaxWidth().graphicsLayer().testTag("cashflow_radar_card"),
     shape = RoundedCornerShape(26.dp),
+    shadowTint = accentColor,
   ) {
     Column(
       modifier = Modifier.padding(18.dp),
@@ -74,15 +117,15 @@ fun CashflowRadarCard(
           color = MaterialTheme.colorScheme.onSurface,
         )
 
-        Surface(
-          shape = RoundedCornerShape(999.dp),
-          color = accentColor.copy(alpha = 0.12f),
-          border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
+        Box(
           modifier =
             Modifier.heightIn(min = 48.dp)
               .clip(RoundedCornerShape(999.dp))
-              .clickable(role = Role.Button, onClick = onOpenSimulator)
+              .background(accentColor.copy(alpha = 0.14f))
+              .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.30f)), RoundedCornerShape(999.dp))
+              .futuristicClickable(role = Role.Button, onClick = onOpenSimulator)
               .testTag("open_simulator_btn"),
+          contentAlignment = Alignment.Center,
         ) {
           Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -110,14 +153,26 @@ fun CashflowRadarCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        // Multi-segment Canvas Cashflow Ring
+        // Multi-segment Animated Futuristic Radar Ring
         Box(
           modifier =
-            Modifier.size(86.dp).drawBehind {
-              val strokeWidth = 10.dp.toPx()
+            Modifier.size(90.dp).drawBehind {
+              val strokeWidth = 9.5.dp.toPx()
               val inset = strokeWidth / 2f
               val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
               val topLeft = Offset(inset, inset)
+
+              // Rotating inner HUD tick reticle
+              val innerR = (size.minDimension / 2f) - strokeWidth - 5.dp.toPx()
+              if (innerR > 0f) {
+                rotate(degrees = -radarOrbitAngle) {
+                  drawCircle(
+                    color = innerRingColor,
+                    radius = innerR,
+                    style = Stroke(width = 1.dp.toPx(), pathEffect = innerDash),
+                  )
+                }
+              }
 
               if (pulseMetrics.totalCashflowVolume <= 0.0) {
                 drawArc(
@@ -138,10 +193,12 @@ fun CashflowRadarCard(
                     pulseMetrics.dueShare to dueColor,
                   ).filter { it.first > 0f }
 
-                val gapAngle = if (segments.size > 1) 4f else 0f
+                val gapAngle = if (segments.size > 1) 5f else 0f
                 val availableAngle = 360f - gapAngle * segments.size
+                val animMultiplier = sweepAnim.value.coerceIn(0.01f, 1f)
                 segments.forEach { (share, color) ->
-                  val sweep = (availableAngle * share).coerceAtLeast(3f)
+                  val fullSweep = (availableAngle * share).coerceAtLeast(3f)
+                  val sweep = fullSweep * animMultiplier
                   drawArc(
                     color = color,
                     startAngle = currentStart,
@@ -151,7 +208,7 @@ fun CashflowRadarCard(
                     size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
                   )
-                  currentStart += sweep + gapAngle
+                  currentStart += fullSweep + gapAngle
                 }
               }
             },
