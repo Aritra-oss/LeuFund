@@ -33,7 +33,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -54,12 +53,13 @@ fun SummaryTilesRow(
   pulseMetrics: BusinessPulseMetrics,
   isPrivacyMasked: Boolean,
   modifier: Modifier = Modifier,
+  animMemory: DashboardAnimMemory? = null,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val maskedText = stringResource(R.string.masked_amount)
 
   Row(
-    modifier = modifier.fillMaxWidth().graphicsLayer(),
+    modifier = modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     SummaryTile(
@@ -71,6 +71,7 @@ fun SummaryTilesRow(
       contentColor = semanticColors.softRedContent,
       isPrivacyMasked = isPrivacyMasked,
       maskedText = maskedText,
+      animMemory = animMemory,
       modifier = Modifier.weight(1f).testTag("summary_tile_invested"),
     )
     SummaryTile(
@@ -82,6 +83,7 @@ fun SummaryTilesRow(
       contentColor = semanticColors.softGreenContent,
       isPrivacyMasked = isPrivacyMasked,
       maskedText = maskedText,
+      animMemory = animMemory,
       modifier = Modifier.weight(1f).testTag("summary_tile_earned"),
     )
     SummaryTile(
@@ -93,6 +95,7 @@ fun SummaryTilesRow(
       contentColor = semanticColors.softAmberContent,
       isPrivacyMasked = isPrivacyMasked,
       maskedText = maskedText,
+      animMemory = animMemory,
       modifier = Modifier.weight(1f).testTag("summary_tile_due"),
     )
   }
@@ -108,6 +111,7 @@ private fun SummaryTile(
   contentColor: Color,
   isPrivacyMasked: Boolean,
   maskedText: String,
+  animMemory: DashboardAnimMemory?,
   modifier: Modifier = Modifier,
 ) {
   val semanticColors = LocalFundTrackColors.current
@@ -116,12 +120,18 @@ private fun SummaryTile(
       if (isPrivacyMasked) maskedText else CurrencyFormatter.formatInr(amount)
     }
   val targetShare = shareFraction.coerceIn(0f, 1f)
-  val animatedShare = remember(label) { Animatable(0f) }
+  val shouldAnimate =
+    remember(label, targetShare) {
+      animMemory?.consumeShouldAnimate("tile_$label", targetShare) ?: true
+    }
+  val animatedShare = remember(label) { Animatable(if (shouldAnimate) 0f else targetShare) }
   LaunchedEffect(targetShare) {
-    animatedShare.animateTo(
-      targetValue = targetShare,
-      animationSpec = tween(durationMillis = 540, easing = FastOutSlowInEasing),
-    )
+    if (shouldAnimate || animatedShare.value != targetShare) {
+      animatedShare.animateTo(
+        targetValue = targetShare,
+        animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+      )
+    }
   }
 
   val trackColor = contentColor.copy(alpha = 0.14f)
@@ -191,7 +201,7 @@ private fun SummaryTile(
         overflow = TextOverflow.Ellipsis,
       )
 
-      // Cached draw-phase animated proportional volume bar
+      // Cached draw-phase proportional volume bar
       Box(
         modifier =
           Modifier.fillMaxWidth()

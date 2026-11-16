@@ -18,15 +18,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -43,9 +43,27 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
+ * Tracks intro-animation signatures above `LazyColumn` so gauge/bar sweeps play on initial open,
+ * business switches, or data updates—and render settled immediately with zero coroutine restarts
+ * when scrolling back and forth across sections.
+ */
+@Stable
+class DashboardAnimMemory {
+  private val playedSignatures = HashMap<String, Any>()
+
+  fun consumeShouldAnimate(key: String, signature: Any): Boolean {
+    val previous = playedSignatures[key]
+    if (previous == signature) return false
+    playedSignatures[key] = signature
+    return true
+  }
+}
+
+/**
  * Full-bleed classic-futuristic ambient backdrop behind the translucent glass UI.
- * Eliminates expensive RenderEffect offscreen blur passes that stall scrolling, replacing them
- * with GPU-cached 5-stop radial plasma halos, gentle orbital drift, and precision HUD geometry.
+ * All gradients, grid lines, and orbital rings are compiled once inside `drawWithCache` (zero
+ * per-frame Brush or array allocations), while the plasma halo layer drifts purely via GPU matrix
+ * `graphicsLayer` translation so scrolling stays locked at full refresh rate.
  */
 @Composable
 fun GlassAmbientBackdrop(
@@ -88,23 +106,22 @@ fun GlassAmbientBackdrop(
       label = "backdrop_orbital_phase",
     )
 
-  Box(
-    modifier =
-      modifier
-        .fillMaxSize()
-        .background(baseGradient)
-        .graphicsLayer()
-        .drawBehind {
-          val w = size.width
-          val h = size.height
-          val dx = cos(driftPhase) * w * 0.045f
-          val dy = sin(driftPhase) * h * 0.03f
+  Box(modifier = modifier.fillMaxSize().background(baseGradient)) {
+    // Layer 1: GPU-cached plasma halos translated strictly via graphicsLayer matrix (0 per-frame alloc)
+    Spacer(
+      modifier =
+        Modifier.fillMaxSize()
+          .graphicsLayer {
+            translationX = cos(driftPhase) * size.width * 0.04f
+            translationY = sin(driftPhase) * size.height * 0.025f
+          }
+          .drawWithCache {
+            val w = size.width
+            val h = size.height
 
-          // Top-right luminous theme plasma halo (5-stop soft radial gradient — zero RenderEffect stall)
-          val topRightCenter = Offset(w * 0.86f + dx, h * 0.13f + dy)
-          val r1 = w * 0.85f
-          drawCircle(
-            brush =
+            val topRightCenter = Offset(w * 0.86f, h * 0.13f)
+            val r1 = w * 0.85f
+            val brush1 =
               Brush.radialGradient(
                 colorStops =
                   arrayOf(
@@ -115,16 +132,11 @@ fun GlassAmbientBackdrop(
                   ),
                 center = topRightCenter,
                 radius = r1,
-              ),
-            center = topRightCenter,
-            radius = r1,
-          )
+              )
 
-          // Mid-left rich depth orb
-          val midLeftCenter = Offset(w * 0.10f - dx * 0.8f, h * 0.44f - dy)
-          val r2 = w * 0.78f
-          drawCircle(
-            brush =
+            val midLeftCenter = Offset(w * 0.10f, h * 0.44f)
+            val r2 = w * 0.78f
+            val brush2 =
               Brush.radialGradient(
                 colorStops =
                   arrayOf(
@@ -135,16 +147,11 @@ fun GlassAmbientBackdrop(
                   ),
                 center = midLeftCenter,
                 radius = r2,
-              ),
-            center = midLeftCenter,
-            radius = r2,
-          )
+              )
 
-          // Lower-right cool cyan ambient glow
-          val bottomRightCenter = Offset(w * 0.80f + dx * 0.6f, h * 0.84f - dy * 0.7f)
-          val r3 = w * 0.72f
-          drawCircle(
-            brush =
+            val bottomRightCenter = Offset(w * 0.80f, h * 0.84f)
+            val r3 = w * 0.72f
+            val brush3 =
               Brush.radialGradient(
                 colorStops =
                   arrayOf(
@@ -154,41 +161,45 @@ fun GlassAmbientBackdrop(
                   ),
                 center = bottomRightCenter,
                 radius = r3,
-              ),
-            center = bottomRightCenter,
-            radius = r3,
-          )
+              )
 
-          // Classic-futuristic precision architectural grid (subtle hairline matrix)
+            onDrawBehind {
+              drawCircle(brush = brush1, center = topRightCenter, radius = r1)
+              drawCircle(brush = brush2, center = midLeftCenter, radius = r2)
+              drawCircle(brush = brush3, center = bottomRightCenter, radius = r3)
+            }
+          }
+    )
+
+    // Layer 2: Static cached architectural HUD matrix & concentric chronometer rings
+    Spacer(
+      modifier =
+        Modifier.fillMaxSize().drawWithCache {
+          val w = size.width
+          val h = size.height
           val step = 44.dp.toPx()
           val strokeW = 0.75.dp.toPx()
-          var x = step * 0.5f
-          while (x < w) {
-            drawLine(gridLineColor, Offset(x, 0f), Offset(x, h), strokeWidth = strokeW)
-            x += step
-          }
-          var y = step * 0.5f
-          while (y < h) {
-            drawLine(gridLineColor, Offset(0f, y), Offset(w, y), strokeWidth = strokeW)
-            y += step
-          }
-
-          // Subtle concentric orbital chronometer rings in upper sky
           val orbitCenter = Offset(w * 0.92f, h * 0.08f)
-          drawCircle(
-            color = ringColor,
-            radius = w * 0.46f,
-            center = orbitCenter,
-            style = Stroke(width = 1.dp.toPx()),
-          )
-          drawCircle(
-            color = ringColor,
-            radius = w * 0.68f,
-            center = orbitCenter,
-            style = Stroke(width = 0.8.dp.toPx()),
-          )
+          val ring1Stroke = Stroke(width = 1.dp.toPx())
+          val ring2Stroke = Stroke(width = 0.8.dp.toPx())
+
+          onDrawBehind {
+            var x = step * 0.5f
+            while (x < w) {
+              drawLine(gridLineColor, Offset(x, 0f), Offset(x, h), strokeWidth = strokeW)
+              x += step
+            }
+            var y = step * 0.5f
+            while (y < h) {
+              drawLine(gridLineColor, Offset(0f, y), Offset(w, y), strokeWidth = strokeW)
+              y += step
+            }
+            drawCircle(color = ringColor, radius = w * 0.46f, center = orbitCenter, style = ring1Stroke)
+            drawCircle(color = ringColor, radius = w * 0.68f, center = orbitCenter, style = ring2Stroke)
+          }
         }
-  )
+    )
+  }
 }
 
 /**
@@ -246,7 +257,6 @@ fun GlassCard(
             )
           onDrawWithContent {
             drawContent()
-            // Specular top-edge prism catchlight
             drawLine(
               brush = catchlightBrush,
               start = Offset(size.width * 0.10f, strokeW),
@@ -254,7 +264,6 @@ fun GlassCard(
               strokeWidth = strokeW,
             )
             if (futuristicReticles && size.width > cornerInset * 4f && size.height > cornerInset * 4f) {
-              // Subtle top-left & bottom-right micro HUD corner reticles
               drawLine(
                 color = reticleColor,
                 start = Offset(cornerInset, cornerInset),
@@ -289,13 +298,14 @@ fun GlassCard(
 }
 
 /**
- * Pure render-layer spring press bounce (`scaleX`/`scaleY` inside `graphicsLayer`) so tapping
- * pills and cards feels responsive with zero layout re-measurement.
+ * Pure render-layer spring press bounce (`scaleX`/`scaleY` inside `graphicsLayer`) evaluated
+ * directly in the caller's composition slot without `Modifier.composed` subcomposition overhead.
  */
+@Composable
 fun Modifier.futuristicPressScale(
   interactionSource: InteractionSource,
   pressedScale: Float = 0.965f,
-): Modifier = composed {
+): Modifier {
   val isPressed by interactionSource.collectIsPressedAsState()
   val scale by
     animateFloatAsState(
@@ -307,23 +317,28 @@ fun Modifier.futuristicPressScale(
         ),
       label = "futuristic_press_scale",
     )
-  this.graphicsLayer {
+  return this.graphicsLayer {
     scaleX = scale
     scaleY = scale
   }
 }
 
 /**
- * Combines standard Material ripple indication with pure render-layer spring press scaling.
+ * Combines standard Material ripple indication with pure render-layer spring press scaling
+ * without `Modifier.composed` subcomposition overhead inside lazy lists.
  */
+@Composable
 fun Modifier.futuristicClickable(
   role: Role? = null,
   pressedScale: Float = 0.965f,
   onClick: () -> Unit,
-): Modifier = composed {
+): Modifier {
   val interactionSource = remember { MutableInteractionSource() }
   val indication = LocalIndication.current
-  this.futuristicPressScale(interactionSource = interactionSource, pressedScale = pressedScale)
+  return this.futuristicPressScale(
+      interactionSource = interactionSource,
+      pressedScale = pressedScale,
+    )
     .clickable(
       interactionSource = interactionSource,
       indication = indication,

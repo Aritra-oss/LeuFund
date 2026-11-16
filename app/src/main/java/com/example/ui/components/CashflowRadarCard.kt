@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -33,14 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -60,6 +60,7 @@ fun CashflowRadarCard(
   isPrivacyMasked: Boolean,
   onOpenSimulator: () -> Unit,
   modifier: Modifier = Modifier,
+  animMemory: DashboardAnimMemory? = null,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val maskedText = stringResource(R.string.masked_amount)
@@ -69,18 +70,31 @@ fun CashflowRadarCard(
   val emptyTrackColor = semanticColors.cardBorder
   val innerRingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.24f)
 
-  val sweepAnim = remember { Animatable(0f) }
-  LaunchedEffect(
-    pulseMetrics.investmentShare,
-    pulseMetrics.revenueShare,
-    pulseMetrics.dueShare,
-    pulseMetrics.totalCashflowVolume,
-  ) {
-    sweepAnim.snapTo(0f)
-    sweepAnim.animateTo(
-      targetValue = 1f,
-      animationSpec = tween(durationMillis = 720, easing = FastOutSlowInEasing),
-    )
+  val radarSignature =
+    remember(
+      pulseMetrics.investmentShare,
+      pulseMetrics.revenueShare,
+      pulseMetrics.dueShare,
+      pulseMetrics.totalCashflowVolume,
+    ) {
+      "${pulseMetrics.investmentShare}_${pulseMetrics.revenueShare}_${pulseMetrics.dueShare}_${pulseMetrics.totalCashflowVolume}"
+    }
+  val shouldAnimate =
+    remember(radarSignature) {
+      animMemory?.consumeShouldAnimate("cashflow_radar", radarSignature) ?: true
+    }
+
+  val sweepAnim = remember { Animatable(if (shouldAnimate) 0f else 1f) }
+  LaunchedEffect(radarSignature) {
+    if (shouldAnimate) {
+      sweepAnim.snapTo(0f)
+      sweepAnim.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 680, easing = FastOutSlowInEasing),
+      )
+    } else if (sweepAnim.value != 1f) {
+      sweepAnim.snapTo(1f)
+    }
   }
 
   val infiniteTransition = rememberInfiniteTransition(label = "radar_ring_orbit")
@@ -98,7 +112,7 @@ fun CashflowRadarCard(
   val innerDash = remember { PathEffect.dashPathEffect(floatArrayOf(4f, 8f), 0f) }
 
   GlassCard(
-    modifier = modifier.fillMaxWidth().graphicsLayer().testTag("cashflow_radar_card"),
+    modifier = modifier.fillMaxWidth().testTag("cashflow_radar_card"),
     shape = RoundedCornerShape(26.dp),
     shadowTint = accentColor,
   ) {
@@ -153,67 +167,76 @@ fun CashflowRadarCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        // Multi-segment Animated Futuristic Radar Ring
-        Box(
-          modifier =
-            Modifier.size(90.dp).drawBehind {
-              val strokeWidth = 9.5.dp.toPx()
-              val inset = strokeWidth / 2f
-              val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-              val topLeft = Offset(inset, inset)
-
-              // Rotating inner HUD tick reticle
-              val innerR = (size.minDimension / 2f) - strokeWidth - 5.dp.toPx()
-              if (innerR > 0f) {
-                rotate(degrees = -radarOrbitAngle) {
-                  drawCircle(
-                    color = innerRingColor,
-                    radius = innerR,
-                    style = Stroke(width = 1.dp.toPx(), pathEffect = innerDash),
-                  )
+        // Multi-segment Animated Futuristic Radar Ring (inner reticle GPU-rotated independently)
+        Box(modifier = Modifier.size(90.dp), contentAlignment = Alignment.Center) {
+          Spacer(
+            modifier =
+              Modifier.matchParentSize()
+                .graphicsLayer { rotationZ = -radarOrbitAngle }
+                .drawWithCache {
+                  val strokeWidth = 9.5.dp.toPx()
+                  val innerR = (size.minDimension / 2f) - strokeWidth - 5.dp.toPx()
+                  val innerStroke = Stroke(width = 1.dp.toPx(), pathEffect = innerDash)
+                  onDrawBehind {
+                    if (innerR > 0f) {
+                      drawCircle(color = innerRingColor, radius = innerR, style = innerStroke)
+                    }
+                  }
                 }
-              }
+          )
 
-              if (pulseMetrics.totalCashflowVolume <= 0.0) {
-                drawArc(
-                  color = emptyTrackColor,
-                  startAngle = -90f,
-                  sweepAngle = 360f,
-                  useCenter = false,
-                  topLeft = topLeft,
-                  size = arcSize,
-                  style = Stroke(width = strokeWidth),
-                )
-              } else {
-                var currentStart = -90f
-                val segments =
-                  listOf(
-                    pulseMetrics.investmentShare to invColor,
-                    pulseMetrics.revenueShare to revColor,
-                    pulseMetrics.dueShare to dueColor,
-                  ).filter { it.first > 0f }
+          Spacer(
+            modifier =
+              Modifier.matchParentSize().drawWithCache {
+                val strokeWidth = 9.5.dp.toPx()
+                val inset = strokeWidth / 2f
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                val topLeft = Offset(inset, inset)
+                val arcStroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                val emptyStroke = Stroke(width = strokeWidth)
 
+                val segments = buildList {
+                  if (pulseMetrics.investmentShare > 0f) add(pulseMetrics.investmentShare to invColor)
+                  if (pulseMetrics.revenueShare > 0f) add(pulseMetrics.revenueShare to revColor)
+                  if (pulseMetrics.dueShare > 0f) add(pulseMetrics.dueShare to dueColor)
+                }
                 val gapAngle = if (segments.size > 1) 5f else 0f
                 val availableAngle = 360f - gapAngle * segments.size
-                val animMultiplier = sweepAnim.value.coerceIn(0.01f, 1f)
-                segments.forEach { (share, color) ->
-                  val fullSweep = (availableAngle * share).coerceAtLeast(3f)
-                  val sweep = fullSweep * animMultiplier
-                  drawArc(
-                    color = color,
-                    startAngle = currentStart,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                  )
-                  currentStart += fullSweep + gapAngle
+
+                onDrawBehind {
+                  if (pulseMetrics.totalCashflowVolume <= 0.0 || segments.isEmpty()) {
+                    drawArc(
+                      color = emptyTrackColor,
+                      startAngle = -90f,
+                      sweepAngle = 360f,
+                      useCenter = false,
+                      topLeft = topLeft,
+                      size = arcSize,
+                      style = emptyStroke,
+                    )
+                  } else {
+                    var currentStart = -90f
+                    val animMultiplier = sweepAnim.value.coerceIn(0.01f, 1f)
+                    for (i in segments.indices) {
+                      val (share, color) = segments[i]
+                      val fullSweep = (availableAngle * share).coerceAtLeast(3f)
+                      val sweep = fullSweep * animMultiplier
+                      drawArc(
+                        color = color,
+                        startAngle = currentStart,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = arcStroke,
+                      )
+                      currentStart += fullSweep + gapAngle
+                    }
+                  }
                 }
               }
-            },
-          contentAlignment = Alignment.Center,
-        ) {
+          )
+
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
               text = "${pulseMetrics.collectionRatePercent}%",

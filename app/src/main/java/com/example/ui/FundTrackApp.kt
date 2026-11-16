@@ -43,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +74,7 @@ import com.example.ui.components.BusinessTabsRow
 import com.example.ui.components.CashflowRadarCard
 import com.example.ui.components.CautionCard
 import com.example.ui.components.ChangeMpinBottomSheet
+import com.example.ui.components.DashboardAnimMemory
 import com.example.ui.components.DashboardSearchBar
 import com.example.ui.components.EarningsByClientCard
 import com.example.ui.components.FinancialSummaryBottomSheet
@@ -395,13 +395,6 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
               },
               modifier =
                 Modifier.futuristicPressScale(fabInteraction, pressedScale = 0.95f)
-                  .shadow(
-                    elevation = 10.dp,
-                    shape = fabShape,
-                    clip = false,
-                    ambientColor = activeAccentColor.copy(alpha = 0.45f),
-                    spotColor = activeAccentColor.copy(alpha = 0.45f),
-                  )
                   .border(width = 1.dp, brush = fabRimBrush, shape = fabShape)
                   .testTag("quick_log_fab"),
             )
@@ -673,6 +666,7 @@ private fun DashboardContent(
   val addDueLabel = stringResource(R.string.add_money_due)
   val maskedAmountLabel = stringResource(R.string.masked_amount)
   val listState = rememberLazyListState()
+  val animMemory = remember(state.selectedBusiness.id) { DashboardAnimMemory() }
 
   Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     LazyColumn(
@@ -694,71 +688,70 @@ private fun DashboardContent(
       }
 
       item(key = "search_bar", contentType = "search_bar") {
-        Column(modifier = Modifier.padding(top = 14.dp)) {
-          DashboardSearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchQueryChange,
-            matchingCount = totalFilteredCount,
-            selectedCategory = selectedCategory,
-            onSelectCategory = onSelectCategory,
-            sortOrder = sortOrder,
-            onToggleSort = onToggleSort,
-            investmentCount = filteredInvestments.size,
-            revenueCount = filteredRevenues.size,
-            dueCount = filteredDues.size,
-            accentColor = state.themePalette.accent,
-          )
-        }
+        DashboardSearchBar(
+          query = searchQuery,
+          onQueryChange = onSearchQueryChange,
+          matchingCount = totalFilteredCount,
+          selectedCategory = selectedCategory,
+          onSelectCategory = onSelectCategory,
+          sortOrder = sortOrder,
+          onToggleSort = onToggleSort,
+          investmentCount = filteredInvestments.size,
+          revenueCount = filteredRevenues.size,
+          dueCount = filteredDues.size,
+          accentColor = state.themePalette.accent,
+          modifier = Modifier.padding(top = 14.dp),
+        )
       }
 
       item(key = "hero_card", contentType = "hero_card") {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-          HeroProfitCard(
-            business = state.selectedBusiness,
-            themePalette = state.themePalette,
-            totalInvestment = state.totalInvestment,
-            totalRevenue = state.totalRevenue,
-            totalDue = state.totalDue,
-            netProfit = state.netProfit,
-            pulseMetrics = state.pulseMetrics,
-            isPrivacyMasked = isPrivacyMasked,
-            onOpenSettings = onOpenSettings,
-            onOpenSummary = onOpenSummary,
-          )
-        }
+        HeroProfitCard(
+          business = state.selectedBusiness,
+          themePalette = state.themePalette,
+          totalInvestment = state.totalInvestment,
+          totalRevenue = state.totalRevenue,
+          totalDue = state.totalDue,
+          netProfit = state.netProfit,
+          pulseMetrics = state.pulseMetrics,
+          isPrivacyMasked = isPrivacyMasked,
+          onOpenSettings = onOpenSettings,
+          onOpenSummary = onOpenSummary,
+          animMemory = animMemory,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+        )
       }
 
       item(key = "summary_tiles", contentType = "summary_tiles") {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-          SummaryTilesRow(
-            totalInvestment = state.totalInvestment,
-            totalRevenue = state.totalRevenue,
-            totalDue = state.totalDue,
-            pulseMetrics = state.pulseMetrics,
-            isPrivacyMasked = isPrivacyMasked,
-          )
-        }
+        SummaryTilesRow(
+          totalInvestment = state.totalInvestment,
+          totalRevenue = state.totalRevenue,
+          totalDue = state.totalDue,
+          pulseMetrics = state.pulseMetrics,
+          isPrivacyMasked = isPrivacyMasked,
+          animMemory = animMemory,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+        )
       }
 
       item(key = "cashflow_radar", contentType = "cashflow_radar") {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-          CashflowRadarCard(
-            pulseMetrics = state.pulseMetrics,
-            accentColor = state.themePalette.accent,
-            isPrivacyMasked = isPrivacyMasked,
-            onOpenSimulator = onOpenSimulator,
-          )
-        }
+        CashflowRadarCard(
+          pulseMetrics = state.pulseMetrics,
+          accentColor = state.themePalette.accent,
+          isPrivacyMasked = isPrivacyMasked,
+          onOpenSimulator = onOpenSimulator,
+          animMemory = animMemory,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+        )
       }
 
       item(key = "earnings_by_client", contentType = "earnings_by_client") {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-          EarningsByClientCard(
-            clientEarnings = state.clientEarnings,
-            accentColor = state.themePalette.accent,
-            isPrivacyMasked = isPrivacyMasked,
-          )
-        }
+        EarningsByClientCard(
+          clientEarnings = state.clientEarnings,
+          accentColor = state.themePalette.accent,
+          isPrivacyMasked = isPrivacyMasked,
+          animMemory = animMemory,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+        )
       }
 
       if (
@@ -836,9 +829,7 @@ private fun DashboardContent(
       }
 
       item(key = "caution_card", contentType = "caution_card") {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-          CautionCard()
-        }
+        CautionCard(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
       }
     }
   }

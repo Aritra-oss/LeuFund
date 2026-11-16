@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,16 +29,19 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -47,6 +51,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.domain.DashboardCategoryFilter
@@ -72,56 +77,86 @@ fun DashboardSearchBar(
   val focusManager = LocalFocusManager.current
   val trimmedQuery = query.trim()
   val searchShape = RoundedCornerShape(20.dp)
+  var isSearchFocused by remember { mutableStateOf(false) }
+
+  val onSelectAll = remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.ALL) } }
+  val onSelectInvestment =
+    remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.INVESTMENT) } }
+  val onSelectRevenue =
+    remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.REVENUE) } }
+  val onSelectDue = remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.DUE) } }
 
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    Box(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+    // Lightweight frosted glass search capsule (avoids heavy M3 OutlinedTextField composition on scroll)
+    Row(
+      modifier =
+        Modifier.fillMaxWidth()
+          .padding(horizontal = 16.dp)
+          .heightIn(min = 52.dp)
+          .clip(searchShape)
+          .background(
+            if (isSearchFocused) semanticColors.glassElevatedStart else semanticColors.glassFillStart
+          )
+          .border(
+            width = if (isSearchFocused) 1.5.dp else 1.dp,
+            color = if (isSearchFocused) accentColor else semanticColors.glassRimStart,
+            shape = searchShape,
+          )
+          .padding(start = 14.dp, end = if (query.isNotEmpty()) 4.dp else 14.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-      OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = {
+      Icon(
+        imageVector = Icons.Outlined.Search,
+        contentDescription = null,
+        tint = if (isSearchFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(20.dp),
+      )
+
+      Box(
+        modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart,
+      ) {
+        if (query.isEmpty()) {
           Text(
             text = stringResource(R.string.search_transactions_hint),
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
           )
-        },
-        leadingIcon = {
+        }
+        BasicTextField(
+          value = query,
+          onValueChange = onQueryChange,
+          singleLine = true,
+          textStyle =
+            MaterialTheme.typography.bodyMedium.copy(
+              color = MaterialTheme.colorScheme.onSurface
+            ),
+          cursorBrush = SolidColor(accentColor),
+          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+          keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+          modifier =
+            Modifier.fillMaxWidth()
+              .onFocusChanged { isSearchFocused = it.isFocused }
+              .testTag("dashboard_search_input"),
+        )
+      }
+
+      if (query.isNotEmpty()) {
+        IconButton(
+          onClick = { onQueryChange("") },
+          modifier = Modifier.size(48.dp).testTag("clear_search_btn"),
+        ) {
           Icon(
-            imageVector = Icons.Outlined.Search,
-            contentDescription = null,
+            imageVector = Icons.Filled.Close,
+            contentDescription = stringResource(R.string.clear_search_cd),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(18.dp),
           )
-        },
-        trailingIcon = {
-          if (query.isNotEmpty()) {
-            IconButton(
-              onClick = { onQueryChange("") },
-              modifier = Modifier.size(48.dp).testTag("clear_search_btn"),
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.clear_search_cd),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-              )
-            }
-          }
-        },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-        shape = searchShape,
-        colors =
-          OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = semanticColors.glassElevatedStart,
-            unfocusedContainerColor = semanticColors.glassFillStart,
-            focusedBorderColor = accentColor,
-            unfocusedBorderColor = semanticColors.glassRimStart,
-          ),
-        modifier = Modifier.fillMaxWidth().testTag("dashboard_search_input"),
-      )
+        }
+      }
     }
 
     // Category filter & sort chips row
@@ -137,7 +172,7 @@ fun DashboardSearchBar(
           count = investmentCount + revenueCount + dueCount,
           isSelected = selectedCategory == DashboardCategoryFilter.ALL,
           accentColor = accentColor,
-          onClick = { onSelectCategory(DashboardCategoryFilter.ALL) },
+          onClick = onSelectAll,
           testTag = "filter_chip_all",
         )
       }
@@ -147,7 +182,7 @@ fun DashboardSearchBar(
           count = investmentCount,
           isSelected = selectedCategory == DashboardCategoryFilter.INVESTMENT,
           accentColor = semanticColors.softRedContent,
-          onClick = { onSelectCategory(DashboardCategoryFilter.INVESTMENT) },
+          onClick = onSelectInvestment,
           testTag = "filter_chip_investment",
         )
       }
@@ -157,7 +192,7 @@ fun DashboardSearchBar(
           count = revenueCount,
           isSelected = selectedCategory == DashboardCategoryFilter.REVENUE,
           accentColor = accentColor,
-          onClick = { onSelectCategory(DashboardCategoryFilter.REVENUE) },
+          onClick = onSelectRevenue,
           testTag = "filter_chip_revenue",
         )
       }
@@ -167,7 +202,7 @@ fun DashboardSearchBar(
           count = dueCount,
           isSelected = selectedCategory == DashboardCategoryFilter.DUE,
           accentColor = semanticColors.softAmberContent,
-          onClick = { onSelectCategory(DashboardCategoryFilter.DUE) },
+          onClick = onSelectDue,
           testTag = "filter_chip_due",
         )
       }

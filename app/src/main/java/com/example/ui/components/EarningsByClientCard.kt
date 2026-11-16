@@ -27,7 +27,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,13 +44,14 @@ fun EarningsByClientCard(
   accentColor: Color,
   isPrivacyMasked: Boolean,
   modifier: Modifier = Modifier,
+  animMemory: DashboardAnimMemory? = null,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val maskedText = stringResource(R.string.masked_amount)
   val trackColor = semanticColors.glassRimEnd
 
   GlassCard(
-    modifier = modifier.fillMaxWidth().graphicsLayer().testTag("earnings_by_client_card"),
+    modifier = modifier.fillMaxWidth().testTag("earnings_by_client_card"),
     shape = RoundedCornerShape(26.dp),
     shadowTint = accentColor,
   ) {
@@ -79,14 +79,24 @@ fun EarningsByClientCard(
               if (isPrivacyMasked) maskedText
               else client.formattedAmount.ifEmpty { CurrencyFormatter.formatInr(client.totalAmount) }
             val targetFraction = client.fractionOfMax.coerceAtLeast(0.04f)
-            val animatedBar = remember(client.displayName) { Animatable(0f) }
+            val shouldAnimate =
+              remember(client.displayName, targetFraction) {
+                animMemory?.consumeShouldAnimate("client_${client.displayName}", targetFraction)
+                  ?: true
+              }
+            val animatedBar =
+              remember(client.displayName) { Animatable(if (shouldAnimate) 0f else targetFraction) }
 
             LaunchedEffect(client.displayName, targetFraction) {
-              if (index in 1..6) delay((index * 55).toLong())
-              animatedBar.animateTo(
-                targetValue = targetFraction,
-                animationSpec = tween(durationMillis = 560, easing = FastOutSlowInEasing),
-              )
+              if (shouldAnimate) {
+                if (index in 1..6) delay((index * 45).toLong())
+                animatedBar.animateTo(
+                  targetValue = targetFraction,
+                  animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+                )
+              } else if (animatedBar.value != targetFraction) {
+                animatedBar.snapTo(targetFraction)
+              }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -141,7 +151,7 @@ fun EarningsByClientCard(
                 )
               }
 
-              // Cached draw-phase animated luminous progress bar
+              // Cached draw-phase luminous progress bar
               Box(
                 modifier =
                   Modifier.fillMaxWidth()

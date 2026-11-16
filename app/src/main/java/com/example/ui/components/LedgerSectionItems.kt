@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +58,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -81,8 +81,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Emits a cohesive classic-futuristic glass section directly into the parent [LazyColumn] with
- * zero allocation `drawWithCache` borders and deferred inline-form composition so scrolling
- * across sections stays locked at full display refresh rate.
+ * unified translucent fills, single-pass `drawWithCache` borders/dividers, and zero placement
+ * animation churn so scrolling across section boundaries stays smooth.
  */
 fun LazyListScope.ledgerSection(
   businessId: Long,
@@ -137,7 +137,6 @@ fun LazyListScope.ledgerSection(
         onEdit = onEditEntry,
         onDelete = onDeleteEntry,
         onMarkReceived = onMarkDueReceived,
-        modifier = Modifier.animateItem(),
       )
     }
   }
@@ -164,15 +163,13 @@ private fun LedgerSectionHeader(
 ) {
   val semanticColors = LocalFundTrackColors.current
   val borderColor = semanticColors.glassRimStart
+  val sectionFillColor =
+    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
+    }
   val formattedTotal =
     remember(totalAmount, isPrivacyMasked, maskedAmountLabel) {
       if (isPrivacyMasked) maskedAmountLabel else CurrencyFormatter.formatInr(totalAmount)
-    }
-  val fillBrush =
-    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      Brush.horizontalGradient(
-        colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
-      )
     }
 
   Box(
@@ -180,7 +177,7 @@ private fun LedgerSectionHeader(
       Modifier.fillMaxWidth()
         .padding(start = 16.dp, end = 16.dp, top = 16.dp)
         .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-        .background(fillBrush)
+        .background(sectionFillColor)
         .testTag("section_card_${type.name.lowercase()}"),
   ) {
     Row(
@@ -240,17 +237,15 @@ private fun LedgerSectionHeader(
 @Composable
 private fun LedgerSectionEmptyRow(type: EntryType, emptyMessage: String?) {
   val semanticColors = LocalFundTrackColors.current
-  val fillBrush =
+  val sectionFillColor =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      Brush.horizontalGradient(
-        colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
-      )
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
     }
   Box(
     modifier =
       Modifier.fillMaxWidth()
         .padding(horizontal = 16.dp)
-        .background(fillBrush)
+        .background(sectionFillColor)
   ) {
     Text(
       text = emptyMessage ?: stringResource(R.string.nothing_here_yet),
@@ -258,7 +253,11 @@ private fun LedgerSectionEmptyRow(type: EntryType, emptyMessage: String?) {
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier =
         Modifier.fillMaxWidth()
-          .drawSideBorders(semanticColors.glassRimStart)
+          .drawRowBordersAndDivider(
+            borderColor = semanticColors.glassRimStart,
+            dividerColor = Color.Transparent,
+            showDivider = false,
+          )
           .padding(horizontal = 20.dp, vertical = 8.dp)
           .testTag("empty_text_${type.name.lowercase()}"),
     )
@@ -283,123 +282,125 @@ private fun LedgerVirtualizedEntryRow(
   val haptics = LocalHapticFeedback.current
   val entry = model.entry
   val displayAmount = if (isPrivacyMasked) maskedAmountLabel else model.formattedAmount
-  val fillBrush =
+  val sectionFillColor =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      Brush.horizontalGradient(
-        colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
-      )
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
+    }
+  val dividerColor =
+    remember(semanticColors.cardBorder) { semanticColors.cardBorder.copy(alpha = 0.6f) }
+
+  val handleEditClick = remember(entry, onEdit) { { onEdit(entry) } }
+  val handleDeleteClick =
+    remember(entry, onDelete, haptics) {
+      {
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        onDelete(entry)
+      }
+    }
+  val handleReceivedClick =
+    remember(entry, onMarkReceived, haptics) {
+      {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        onMarkReceived?.invoke(entry)
+        Unit
+      }
     }
 
-  Box(
+  Row(
     modifier =
       modifier
         .fillMaxWidth()
         .padding(horizontal = 16.dp)
-        .background(fillBrush)
-        .clickable { onEdit(entry) }
+        .background(sectionFillColor)
+        .drawRowBordersAndDivider(
+          borderColor = semanticColors.glassRimStart,
+          dividerColor = dividerColor,
+          showDivider = showBottomDivider,
+        )
+        .clickable(onClick = handleEditClick)
+        .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
         .testTag("entry_row_${entry.id}"),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    Column(modifier = Modifier.fillMaxWidth().drawSideBorders(semanticColors.glassRimStart)) {
+    Box(
+      modifier =
+        Modifier.size(40.dp)
+          .clip(RoundedCornerShape(12.dp))
+          .background(badgeContainerColor)
+          .border(1.dp, badgeContentColor.copy(alpha = 0.22f), RoundedCornerShape(12.dp)),
+      contentAlignment = Alignment.Center,
+    ) {
+      Text(
+        text = model.initials,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = badgeContentColor,
+      )
+    }
+
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        text = entry.name,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
       Row(
-        modifier =
-          Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
       ) {
-        Box(
-          modifier =
-            Modifier.size(40.dp)
-              .clip(RoundedCornerShape(12.dp))
-              .background(badgeContainerColor)
-              .border(1.dp, badgeContentColor.copy(alpha = 0.22f), RoundedCornerShape(12.dp)),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            text = model.initials,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = badgeContentColor,
-          )
-        }
-
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-          Text(
-            text = entry.name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-          ) {
-            Text(
-              text = displayAmount,
-              style =
-                MaterialTheme.typography.bodyMedium.copy(
-                  fontWeight = FontWeight.SemiBold,
-                  fontFeatureSettings = "tnum",
-                ),
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (model.formattedDate.isNotEmpty()) {
-              Text(
-                text = "· ${model.formattedDate}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                maxLines = 1,
-              )
-            }
-          }
-        }
-
-        if (type == EntryType.DUE && onMarkReceived != null) {
-          FilledTonalButton(
-            onClick = {
-              haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-              onMarkReceived(entry)
-            },
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            colors =
-              ButtonDefaults.filledTonalButtonColors(
-                containerColor = semanticColors.softGreenContainer,
-                contentColor = semanticColors.softGreenContent,
-              ),
-            modifier = Modifier.heightIn(min = 48.dp).testTag("received_btn_${entry.id}"),
-          ) {
-            Text(
-              text = stringResource(R.string.received),
-              style = MaterialTheme.typography.labelMedium,
+        Text(
+          text = displayAmount,
+          style =
+            MaterialTheme.typography.bodyMedium.copy(
               fontWeight = FontWeight.SemiBold,
-            )
-          }
-        }
-
-        IconButton(
-          onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onDelete(entry)
-          },
-          modifier = Modifier.size(48.dp).testTag("delete_entry_btn_${entry.id}"),
-        ) {
-          Icon(
-            imageVector = Icons.Outlined.DeleteOutline,
-            contentDescription = stringResource(R.string.delete_entry_cd, entry.name),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              fontFeatureSettings = "tnum",
+            ),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (model.formattedDate.isNotEmpty()) {
+          Text(
+            text = "· ${model.formattedDate}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+            maxLines = 1,
           )
         }
       }
+    }
 
-      if (showBottomDivider) {
-        HorizontalDivider(
-          color = semanticColors.cardBorder.copy(alpha = 0.6f),
-          thickness = 1.dp,
-          modifier = Modifier.padding(horizontal = 20.dp),
+    if (type == EntryType.DUE && onMarkReceived != null) {
+      FilledTonalButton(
+        onClick = handleReceivedClick,
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        colors =
+          ButtonDefaults.filledTonalButtonColors(
+            containerColor = semanticColors.softGreenContainer,
+            contentColor = semanticColors.softGreenContent,
+          ),
+        modifier = Modifier.heightIn(min = 48.dp).testTag("received_btn_${entry.id}"),
+      ) {
+        Text(
+          text = stringResource(R.string.received),
+          style = MaterialTheme.typography.labelMedium,
+          fontWeight = FontWeight.SemiBold,
         )
       }
+    }
+
+    IconButton(
+      onClick = handleDeleteClick,
+      modifier = Modifier.size(48.dp).testTag("delete_entry_btn_${entry.id}"),
+    ) {
+      Icon(
+        imageVector = Icons.Outlined.DeleteOutline,
+        contentDescription = stringResource(R.string.delete_entry_cd, entry.name),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }
@@ -414,11 +415,9 @@ private fun LedgerSectionFooter(
   val semanticColors = LocalFundTrackColors.current
   var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
 
-  val footerFillBrush =
+  val sectionFillColor =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      Brush.horizontalGradient(
-        colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
-      )
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
     }
   val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
 
@@ -427,7 +426,7 @@ private fun LedgerSectionFooter(
       Modifier.fillMaxWidth()
         .padding(horizontal = 16.dp)
         .clip(RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp))
-        .background(footerFillBrush),
+        .background(sectionFillColor),
   ) {
     Column(
       modifier =
@@ -639,10 +638,16 @@ private fun InlineEntryFormCard(
   }
 }
 
-private fun Modifier.drawSideBorders(borderColor: Color): Modifier =
+private fun Modifier.drawRowBordersAndDivider(
+  borderColor: Color,
+  dividerColor: Color,
+  showDivider: Boolean,
+): Modifier =
   this.drawWithCache {
     val w = 1.dp.toPx()
     val halfW = w / 2f
+    val divPad = 20.dp.toPx()
+    val divY = size.height - halfW
     onDrawBehind {
       drawLine(borderColor, Offset(halfW, 0f), Offset(halfW, size.height), strokeWidth = w)
       drawLine(
@@ -651,6 +656,9 @@ private fun Modifier.drawSideBorders(borderColor: Color): Modifier =
         Offset(size.width - halfW, size.height),
         strokeWidth = w,
       )
+      if (showDivider) {
+        drawLine(dividerColor, Offset(divPad, divY), Offset(size.width - divPad, divY), strokeWidth = w)
+      }
     }
   }
 
