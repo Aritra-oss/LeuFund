@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +24,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -67,11 +66,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Emits a classic, lightweight virtualized ledger section directly into [LazyColumn] using
- * standalone frosted entry cards under clean editorial headers (zero custom stitched-border
- * geometry or idle visibility wrappers for buttery-smooth scrolling across sections).
+ * Renders an entire ledger category as a single unified classic frosted [GlassCard] composed once
+ * inside the scrollable dashboard [Column], avoiding per-section subcomposition stalls during scroll.
  */
-fun LazyListScope.ledgerSection(
+@Composable
+fun LedgerSectionCard(
   businessId: Long,
   type: EntryType,
   title: String,
@@ -87,148 +86,152 @@ fun LazyListScope.ledgerSection(
   onAddEntry: (name: String, amount: Double) -> Unit,
   onEditEntry: (EntryEntity) -> Unit,
   onDeleteEntry: (EntryEntity) -> Unit,
+  modifier: Modifier = Modifier,
   onMarkDueReceived: ((EntryEntity) -> Unit)? = null,
 ) {
-  val keyPrefix = type.name.lowercase()
-
-  item(key = "section_header_$keyPrefix", contentType = "section_header") {
-    LedgerSectionHeader(
-      type = type,
-      title = title,
-      itemCount = models.size,
-      totalAmount = totalAmount,
-      markerColor = markerColor,
-      isPrivacyMasked = isPrivacyMasked,
-      maskedAmountLabel = maskedAmountLabel,
-    )
-  }
-
-  if (models.isEmpty()) {
-    item(key = "section_empty_$keyPrefix", contentType = "section_empty") {
-      LedgerSectionEmptyRow(type = type, emptyMessage = emptyMessage)
-    }
-  } else {
-    items(
-      items = models,
-      key = { model -> "${keyPrefix}_${model.entry.id}" },
-      contentType = { _ -> "ledger_entry_row" },
-    ) { model ->
-      LedgerVirtualizedEntryRow(
-        model = model,
-        type = type,
-        badgeContainerColor = badgeContainerColor,
-        badgeContentColor = badgeContentColor,
-        isPrivacyMasked = isPrivacyMasked,
-        maskedAmountLabel = maskedAmountLabel,
-        onEdit = onEditEntry,
-        onDelete = onDeleteEntry,
-        onMarkReceived = onMarkDueReceived,
-      )
-    }
-  }
-
-  item(key = "section_footer_$keyPrefix", contentType = "section_footer") {
-    LedgerSectionFooter(
-      businessId = businessId,
-      type = type,
-      addButtonLabel = addButtonLabel,
-      onAddEntry = onAddEntry,
-    )
-  }
-}
-
-@Composable
-private fun LedgerSectionHeader(
-  type: EntryType,
-  title: String,
-  itemCount: Int,
-  totalAmount: Double,
-  markerColor: Color,
-  isPrivacyMasked: Boolean,
-  maskedAmountLabel: String,
-) {
   val semanticColors = LocalFundTrackColors.current
+  var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
+
   val formattedTotal =
     remember(totalAmount, isPrivacyMasked, maskedAmountLabel) {
       if (isPrivacyMasked) maskedAmountLabel else CurrencyFormatter.formatInr(totalAmount)
     }
+  val dividerColor =
+    remember(semanticColors.cardBorder) { semanticColors.cardBorder.copy(alpha = 0.55f) }
+  val buttonShape = RoundedCornerShape(14.dp)
 
-  Row(
-    modifier =
-      Modifier.fillMaxWidth()
-        .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 6.dp)
-        .testTag("section_card_${type.name.lowercase()}"),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.SpaceBetween,
+  GlassCard(
+    modifier = modifier.fillMaxWidth().testTag("section_card_${type.name.lowercase()}"),
+    shape = RoundedCornerShape(22.dp),
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(markerColor))
-      Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onBackground,
-      )
-      Box(
-        modifier =
-          Modifier.clip(RoundedCornerShape(999.dp))
-            .background(semanticColors.glassFillStart)
-            .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.65f), RoundedCornerShape(999.dp)),
+    Column(modifier = Modifier.fillMaxWidth()) {
+      // Classic card header
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
       ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(markerColor))
+          Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
+          Box(
+            modifier =
+              Modifier.clip(RoundedCornerShape(999.dp))
+                .background(semanticColors.glassElevatedStart.copy(alpha = 0.8f))
+                .border(
+                  1.dp,
+                  semanticColors.glassRimStart.copy(alpha = 0.65f),
+                  RoundedCornerShape(999.dp),
+                ),
+          ) {
+            Text(
+              text = models.size.toString(),
+              style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+          }
+        }
+
         Text(
-          text = itemCount.toString(),
-          style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+          text = formattedTotal,
+          style =
+            MaterialTheme.typography.titleMedium.copy(
+              fontWeight = FontWeight.Bold,
+              fontFeatureSettings = "tnum",
+            ),
+          color = MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.testTag("section_total_${type.name.lowercase()}"),
         )
       }
-    }
 
-    Text(
-      text = formattedTotal,
-      style =
-        MaterialTheme.typography.titleMedium.copy(
-          fontWeight = FontWeight.Bold,
-          fontFeatureSettings = "tnum",
-        ),
-      color = MaterialTheme.colorScheme.onBackground,
-      modifier = Modifier.testTag("section_total_${type.name.lowercase()}"),
-    )
+      HorizontalDivider(color = dividerColor)
+
+      if (models.isEmpty()) {
+        Text(
+          text = emptyMessage ?: stringResource(R.string.nothing_here_yet),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier =
+            Modifier.fillMaxWidth()
+              .padding(horizontal = 18.dp, vertical = 14.dp)
+              .testTag("empty_text_${type.name.lowercase()}"),
+        )
+      } else {
+        models.forEachIndexed { index, model ->
+          key(model.entry.id) {
+            LedgerEntryRow(
+              model = model,
+              type = type,
+              badgeContainerColor = badgeContainerColor,
+              badgeContentColor = badgeContentColor,
+              isPrivacyMasked = isPrivacyMasked,
+              maskedAmountLabel = maskedAmountLabel,
+              onEdit = onEditEntry,
+              onDelete = onDeleteEntry,
+              onMarkReceived = onMarkDueReceived,
+            )
+            if (index < models.lastIndex) {
+              HorizontalDivider(
+                color = dividerColor,
+                modifier = Modifier.padding(horizontal = 18.dp),
+              )
+            }
+          }
+        }
+      }
+
+      Column(
+        modifier =
+          Modifier.fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        if (isFormOpen) {
+          InlineEntryFormCard(
+            businessId = businessId,
+            type = type,
+            onSave = { name, amount ->
+              onAddEntry(name, amount)
+              isFormOpen = false
+            },
+          )
+        }
+
+        Box(
+          modifier =
+            Modifier.fillMaxWidth()
+              .heightIn(min = 48.dp)
+              .clip(buttonShape)
+              .background(semanticColors.glassFillEnd.copy(alpha = 0.65f))
+              .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.80f), buttonShape)
+              .clickable(role = Role.Button) { isFormOpen = !isFormOpen }
+              .padding(horizontal = 16.dp, vertical = 12.dp)
+              .testTag("toggle_add_btn_${type.name.lowercase()}"),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            text = if (isFormOpen) stringResource(R.string.cancel) else addButtonLabel,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+    }
   }
 }
 
 @Composable
-private fun LedgerSectionEmptyRow(type: EntryType, emptyMessage: String?) {
-  val semanticColors = LocalFundTrackColors.current
-  val cardShape = RoundedCornerShape(16.dp)
-  val fillColor =
-    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.35f)
-    }
-
-  Box(
-    modifier =
-      Modifier.fillMaxWidth()
-        .padding(horizontal = 16.dp, vertical = 4.dp)
-        .clip(cardShape)
-        .background(fillColor)
-        .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.70f), cardShape)
-        .padding(horizontal = 16.dp, vertical = 14.dp),
-  ) {
-    Text(
-      text = emptyMessage ?: stringResource(R.string.nothing_here_yet),
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.testTag("empty_text_${type.name.lowercase()}"),
-    )
-  }
-}
-
-@Composable
-private fun LedgerVirtualizedEntryRow(
+private fun LedgerEntryRow(
   model: EntryUiModel,
   type: EntryType,
   badgeContainerColor: Color,
@@ -238,17 +241,11 @@ private fun LedgerVirtualizedEntryRow(
   onEdit: (EntryEntity) -> Unit,
   onDelete: (EntryEntity) -> Unit,
   onMarkReceived: ((EntryEntity) -> Unit)?,
-  modifier: Modifier = Modifier,
 ) {
   val semanticColors = LocalFundTrackColors.current
   val haptics = LocalHapticFeedback.current
   val entry = model.entry
   val displayAmount = if (isPrivacyMasked) maskedAmountLabel else model.formattedAmount
-  val cardShape = RoundedCornerShape(16.dp)
-  val rowFillColor =
-    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.35f)
-    }
 
   val handleEditClick = remember(entry, onEdit) { { onEdit(entry) } }
   val handleDeleteClick =
@@ -269,14 +266,9 @@ private fun LedgerVirtualizedEntryRow(
 
   Row(
     modifier =
-      modifier
-        .fillMaxWidth()
-        .padding(horizontal = 16.dp, vertical = 4.dp)
-        .clip(cardShape)
-        .background(rowFillColor)
-        .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.72f), cardShape)
+      Modifier.fillMaxWidth()
         .clickable(onClick = handleEditClick)
-        .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp)
+        .padding(start = 18.dp, end = 8.dp, top = 11.dp, bottom = 11.dp)
         .testTag("entry_row_${entry.id}"),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -363,56 +355,6 @@ private fun LedgerVirtualizedEntryRow(
   }
 }
 
-@Composable
-private fun LedgerSectionFooter(
-  businessId: Long,
-  type: EntryType,
-  addButtonLabel: String,
-  onAddEntry: (name: String, amount: Double) -> Unit,
-) {
-  val semanticColors = LocalFundTrackColors.current
-  var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
-  val buttonShape = RoundedCornerShape(14.dp)
-
-  Column(
-    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-  ) {
-    if (isFormOpen) {
-      InlineEntryFormCard(
-        businessId = businessId,
-        type = type,
-        onSave = { name, amount ->
-          onAddEntry(name, amount)
-          isFormOpen = false
-        },
-      )
-    }
-
-    Box(
-      modifier =
-        Modifier.fillMaxWidth()
-          .heightIn(min = 48.dp)
-          .clip(buttonShape)
-          .background(semanticColors.glassFillEnd.copy(alpha = 0.65f))
-          .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.80f), buttonShape)
-          .futuristicClickable(role = Role.Button) {
-            isFormOpen = !isFormOpen
-          }
-          .padding(horizontal = 16.dp, vertical = 12.dp)
-          .testTag("toggle_add_btn_${type.name.lowercase()}"),
-      contentAlignment = Alignment.Center,
-    ) {
-      Text(
-        text = if (isFormOpen) stringResource(R.string.cancel) else addButtonLabel,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
-  }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun InlineEntryFormCard(
@@ -464,7 +406,7 @@ private fun InlineEntryFormCard(
     remember(semanticColors.glassRimStart, semanticColors.glassRimEnd) {
       Brush.linearGradient(colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd))
     }
-  val inlineShape = RoundedCornerShape(18.dp)
+  val inlineShape = RoundedCornerShape(16.dp)
 
   Column(
     modifier =

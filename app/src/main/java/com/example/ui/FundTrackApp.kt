@@ -7,20 +7,18 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
@@ -82,13 +80,12 @@ import com.example.ui.components.FinancialSummaryBottomSheet
 import com.example.ui.components.FirstRunScreen
 import com.example.ui.components.GlassAmbientBackdrop
 import com.example.ui.components.HeroProfitCard
+import com.example.ui.components.LedgerSectionCard
 import com.example.ui.components.MpinSetupScreen
 import com.example.ui.components.ProfitSimulatorSheet
 import com.example.ui.components.QuickEntryBottomSheet
 import com.example.ui.components.SettingsBottomSheet
 import com.example.ui.components.SummaryTilesRow
-import com.example.ui.components.futuristicPressScale
-import com.example.ui.components.ledgerSection
 import com.example.ui.theme.FundTrackTheme
 import com.example.ui.theme.LocalFundTrackColors
 import com.example.ui.viewmodel.FundTrackEvent
@@ -426,7 +423,6 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
               uiState is FundTrackUiState.Dashboard
           ) {
             val fabShape = RoundedCornerShape(999.dp)
-            val fabInteraction = remember { MutableInteractionSource() }
             val fabRimBrush =
               remember(activeThemePalette) {
                 Brush.linearGradient(
@@ -439,7 +435,6 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
                 editingEntry = null
                 isQuickEntryOpen = true
               },
-              interactionSource = fabInteraction,
               shape = fabShape,
               containerColor = activeAccentColor.copy(alpha = 0.94f),
               contentColor = Color.White,
@@ -453,8 +448,7 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
                 )
               },
               modifier =
-                Modifier.futuristicPressScale(fabInteraction, pressedScale = 0.95f)
-                  .border(width = 1.dp, brush = fabRimBrush, shape = fabShape)
+                Modifier.border(width = 1.dp, brush = fabRimBrush, shape = fabShape)
                   .testTag("quick_log_fab"),
             )
           }
@@ -723,100 +717,90 @@ private fun DashboardContent(
   val dueTitle = stringResource(R.string.section_money_due)
   val addDueLabel = stringResource(R.string.add_money_due)
   val maskedAmountLabel = stringResource(R.string.masked_amount)
-  val listState = rememberLazyListState()
+  val scrollState = rememberScrollState()
   val animMemory = remember(state.selectedBusiness.id) { DashboardAnimMemory() }
 
   Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-    LazyColumn(
-      state = listState,
-      modifier = Modifier.widthIn(max = 600.dp).fillMaxSize(),
-      contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+    Column(
+      modifier =
+        Modifier.widthIn(max = 600.dp)
+          .fillMaxSize()
+          .verticalScroll(scrollState)
+          .padding(top = 12.dp, bottom = 96.dp)
     ) {
-      item(key = "business_tabs", contentType = "business_tabs") {
-        BusinessTabsRow(
-          openBusinesses = state.openBusinesses,
-          selectedBusinessId = state.selectedBusiness.id,
-          isDark = isDark,
-          isPrivacyMasked = isPrivacyMasked,
-          onToggleTheme = onToggleTheme,
-          onTogglePrivacy = onTogglePrivacy,
-          onSelectBusiness = onSelectBusiness,
-          onAddBusiness = onAddBusiness,
-        )
-      }
+      BusinessTabsRow(
+        openBusinesses = state.openBusinesses,
+        selectedBusinessId = state.selectedBusiness.id,
+        isDark = isDark,
+        isPrivacyMasked = isPrivacyMasked,
+        onToggleTheme = onToggleTheme,
+        onTogglePrivacy = onTogglePrivacy,
+        onSelectBusiness = onSelectBusiness,
+        onAddBusiness = onAddBusiness,
+      )
 
-      item(key = "search_bar", contentType = "search_bar") {
-        DashboardSearchBar(
-          query = searchQuery,
-          onQueryChange = onSearchQueryChange,
-          matchingCount = totalFilteredCount,
-          selectedCategory = selectedCategory,
-          onSelectCategory = onSelectCategory,
-          sortOrder = sortOrder,
-          onToggleSort = onToggleSort,
-          investmentCount = filteredInvestments.size,
-          revenueCount = filteredRevenues.size,
-          dueCount = filteredDues.size,
-          accentColor = state.themePalette.accent,
-          modifier = Modifier.padding(top = 14.dp),
-        )
-      }
+      DashboardSearchBar(
+        query = searchQuery,
+        onQueryChange = onSearchQueryChange,
+        matchingCount = totalFilteredCount,
+        selectedCategory = selectedCategory,
+        onSelectCategory = onSelectCategory,
+        sortOrder = sortOrder,
+        onToggleSort = onToggleSort,
+        investmentCount = filteredInvestments.size,
+        revenueCount = filteredRevenues.size,
+        dueCount = filteredDues.size,
+        accentColor = state.themePalette.accent,
+        modifier = Modifier.padding(top = 14.dp),
+      )
 
-      item(key = "hero_card", contentType = "hero_card") {
-        HeroProfitCard(
-          business = state.selectedBusiness,
-          themePalette = state.themePalette,
-          totalInvestment = state.totalInvestment,
-          totalRevenue = state.totalRevenue,
-          totalDue = state.totalDue,
-          netProfit = state.netProfit,
-          pulseMetrics = state.pulseMetrics,
-          isPrivacyMasked = isPrivacyMasked,
-          onOpenSettings = onOpenSettings,
-          onOpenSummary = onOpenSummary,
-          animMemory = animMemory,
-          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        )
-      }
+      HeroProfitCard(
+        business = state.selectedBusiness,
+        themePalette = state.themePalette,
+        totalInvestment = state.totalInvestment,
+        totalRevenue = state.totalRevenue,
+        totalDue = state.totalDue,
+        netProfit = state.netProfit,
+        pulseMetrics = state.pulseMetrics,
+        isPrivacyMasked = isPrivacyMasked,
+        onOpenSettings = onOpenSettings,
+        onOpenSummary = onOpenSummary,
+        animMemory = animMemory,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+      )
 
-      item(key = "summary_tiles", contentType = "summary_tiles") {
-        SummaryTilesRow(
-          totalInvestment = state.totalInvestment,
-          totalRevenue = state.totalRevenue,
-          totalDue = state.totalDue,
-          pulseMetrics = state.pulseMetrics,
-          isPrivacyMasked = isPrivacyMasked,
-          animMemory = animMemory,
-          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        )
-      }
+      SummaryTilesRow(
+        totalInvestment = state.totalInvestment,
+        totalRevenue = state.totalRevenue,
+        totalDue = state.totalDue,
+        pulseMetrics = state.pulseMetrics,
+        isPrivacyMasked = isPrivacyMasked,
+        animMemory = animMemory,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+      )
 
-      item(key = "cashflow_radar", contentType = "cashflow_radar") {
-        CashflowRadarCard(
-          pulseMetrics = state.pulseMetrics,
-          accentColor = state.themePalette.accent,
-          isPrivacyMasked = isPrivacyMasked,
-          onOpenSimulator = onOpenSimulator,
-          animMemory = animMemory,
-          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        )
-      }
+      CashflowRadarCard(
+        pulseMetrics = state.pulseMetrics,
+        accentColor = state.themePalette.accent,
+        isPrivacyMasked = isPrivacyMasked,
+        onOpenSimulator = onOpenSimulator,
+        animMemory = animMemory,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+      )
 
-      item(key = "earnings_by_client", contentType = "earnings_by_client") {
-        EarningsByClientCard(
-          clientEarnings = state.clientEarnings,
-          accentColor = state.themePalette.accent,
-          isPrivacyMasked = isPrivacyMasked,
-          animMemory = animMemory,
-          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        )
-      }
+      EarningsByClientCard(
+        clientEarnings = state.clientEarnings,
+        accentColor = state.themePalette.accent,
+        isPrivacyMasked = isPrivacyMasked,
+        animMemory = animMemory,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+      )
 
       if (
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.INVESTMENT
       ) {
-        ledgerSection(
+        LedgerSectionCard(
           businessId = state.selectedBusiness.id,
           type = EntryType.INVESTMENT,
           title = investmentTitle,
@@ -834,6 +818,7 @@ private fun DashboardContent(
           onAddEntry = onAddInvestment,
           onEditEntry = onEditEntry,
           onDeleteEntry = onDeleteEntry,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
         )
       }
 
@@ -841,7 +826,7 @@ private fun DashboardContent(
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.REVENUE
       ) {
-        ledgerSection(
+        LedgerSectionCard(
           businessId = state.selectedBusiness.id,
           type = EntryType.REVENUE,
           title = revenueTitle,
@@ -858,6 +843,7 @@ private fun DashboardContent(
           onAddEntry = onAddRevenue,
           onEditEntry = onEditEntry,
           onDeleteEntry = onDeleteEntry,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
         )
       }
 
@@ -865,7 +851,7 @@ private fun DashboardContent(
         selectedCategory == DashboardCategoryFilter.ALL ||
           selectedCategory == DashboardCategoryFilter.DUE
       ) {
-        ledgerSection(
+        LedgerSectionCard(
           businessId = state.selectedBusiness.id,
           type = EntryType.DUE,
           title = dueTitle,
@@ -883,12 +869,11 @@ private fun DashboardContent(
           onEditEntry = onEditEntry,
           onDeleteEntry = onDeleteEntry,
           onMarkDueReceived = onMarkDueReceived,
+          modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
         )
       }
 
-      item(key = "caution_card", contentType = "caution_card") {
-        CautionCard(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
-      }
+      CautionCard(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
     }
   }
 }
