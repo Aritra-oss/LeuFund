@@ -44,7 +44,7 @@ fun CautionCard(modifier: Modifier = Modifier) {
 
   GlassCard(
     modifier = modifier.fillMaxWidth().testTag("caution_card"),
-    shape = RoundedCornerShape(24.dp),
+    shape = RoundedCornerShape(22.dp),
     elevation = 6.dp,
     customFillBrush = fillBrush,
     customRimBrush = rimBrush,

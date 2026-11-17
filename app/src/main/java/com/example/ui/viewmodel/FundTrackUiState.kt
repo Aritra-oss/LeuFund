@@ -57,7 +57,11 @@ sealed interface FundTrackEvent {
 
   data object ExportError : FundTrackEvent
 
-  data class PdfExportSuccess(val businessName: String) : FundTrackEvent
+  data class PdfExportSuccess(
+    val businessName: String,
+    val shareUriString: String? = null,
+    val savedToDownloads: Boolean = false,
+  ) : FundTrackEvent
 
   data object PdfExportError : FundTrackEvent
 

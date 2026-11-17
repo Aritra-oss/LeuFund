@@ -2,11 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,10 +32,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -68,7 +60,6 @@ fun CashflowRadarCard(
   val revColor = accentColor
   val dueColor = semanticColors.softAmberContent
   val emptyTrackColor = semanticColors.cardBorder
-  val innerRingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.24f)
 
   val radarSignature =
     remember(
@@ -90,31 +81,16 @@ fun CashflowRadarCard(
       sweepAnim.snapTo(0f)
       sweepAnim.animateTo(
         targetValue = 1f,
-        animationSpec = tween(durationMillis = 680, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing),
       )
     } else if (sweepAnim.value != 1f) {
       sweepAnim.snapTo(1f)
     }
   }
 
-  val infiniteTransition = rememberInfiniteTransition(label = "radar_ring_orbit")
-  val radarOrbitAngle by
-    infiniteTransition.animateFloat(
-      initialValue = 0f,
-      targetValue = 360f,
-      animationSpec =
-        infiniteRepeatable(
-          animation = tween(durationMillis = 20_000, easing = LinearEasing),
-          repeatMode = RepeatMode.Restart,
-        ),
-      label = "radar_inner_orbit",
-    )
-  val innerDash = remember { PathEffect.dashPathEffect(floatArrayOf(4f, 8f), 0f) }
-
   GlassCard(
     modifier = modifier.fillMaxWidth().testTag("cashflow_radar_card"),
-    shape = RoundedCornerShape(26.dp),
-    shadowTint = accentColor,
+    shape = RoundedCornerShape(22.dp),
   ) {
     Column(
       modifier = Modifier.padding(18.dp),
@@ -136,7 +112,7 @@ fun CashflowRadarCard(
             Modifier.heightIn(min = 48.dp)
               .clip(RoundedCornerShape(999.dp))
               .background(accentColor.copy(alpha = 0.14f))
-              .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.30f)), RoundedCornerShape(999.dp))
+              .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.28f)), RoundedCornerShape(999.dp))
               .futuristicClickable(role = Role.Button, onClick = onOpenSimulator)
               .testTag("open_simulator_btn"),
           contentAlignment = Alignment.Center,
@@ -167,28 +143,12 @@ fun CashflowRadarCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        // Multi-segment Animated Futuristic Radar Ring (inner reticle GPU-rotated independently)
-        Box(modifier = Modifier.size(90.dp), contentAlignment = Alignment.Center) {
-          Spacer(
-            modifier =
-              Modifier.matchParentSize()
-                .graphicsLayer { rotationZ = -radarOrbitAngle }
-                .drawWithCache {
-                  val strokeWidth = 9.5.dp.toPx()
-                  val innerR = (size.minDimension / 2f) - strokeWidth - 5.dp.toPx()
-                  val innerStroke = Stroke(width = 1.dp.toPx(), pathEffect = innerDash)
-                  onDrawBehind {
-                    if (innerR > 0f) {
-                      drawCircle(color = innerRingColor, radius = innerR, style = innerStroke)
-                    }
-                  }
-                }
-          )
-
+        // Classic multi-segment cashflow donut ring
+        Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
           Spacer(
             modifier =
               Modifier.matchParentSize().drawWithCache {
-                val strokeWidth = 9.5.dp.toPx()
+                val strokeWidth = 9.dp.toPx()
                 val inset = strokeWidth / 2f
                 val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
                 val topLeft = Offset(inset, inset)

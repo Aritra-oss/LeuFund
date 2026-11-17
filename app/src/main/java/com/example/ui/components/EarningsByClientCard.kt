@@ -52,8 +52,7 @@ fun EarningsByClientCard(
 
   GlassCard(
     modifier = modifier.fillMaxWidth().testTag("earnings_by_client_card"),
-    shape = RoundedCornerShape(26.dp),
-    shadowTint = accentColor,
+    shape = RoundedCornerShape(22.dp),
   ) {
     Column(
       modifier = Modifier.padding(20.dp),

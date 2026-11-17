@@ -13,6 +13,7 @@ import android.text.TextUtils
 import androidx.compose.ui.graphics.toArgb
 import com.example.data.local.EntryEntity
 import com.example.ui.viewmodel.FundTrackUiState
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -42,19 +43,32 @@ object PdfReportGenerator {
     return "leufunds_${sanitized}_report_${dateStamp}.pdf"
   }
 
+  fun buildBusinessReportPdfBytes(
+    dashboard: FundTrackUiState.Dashboard,
+    generatedAtMillis: Long = System.currentTimeMillis(),
+  ): ByteArray {
+    val document = PdfDocument()
+    val output = ByteArrayOutputStream()
+    try {
+      val composer = PdfComposer(document, dashboard, generatedAtMillis)
+      composer.render()
+      document.writeTo(output)
+    } finally {
+      document.close()
+    }
+    val bytes = output.toByteArray()
+    check(bytes.isNotEmpty()) { "Generated PDF report was empty" }
+    return bytes
+  }
+
   fun writeBusinessReportPdf(
     dashboard: FundTrackUiState.Dashboard,
     outputStream: OutputStream,
     generatedAtMillis: Long = System.currentTimeMillis(),
   ) {
-    val document = PdfDocument()
-    try {
-      val composer = PdfComposer(document, dashboard, generatedAtMillis)
-      composer.render()
-      document.writeTo(outputStream)
-    } finally {
-      document.close()
-    }
+    val bytes = buildBusinessReportPdfBytes(dashboard, generatedAtMillis)
+    outputStream.write(bytes)
+    outputStream.flush()
   }
 
   private class PdfComposer(

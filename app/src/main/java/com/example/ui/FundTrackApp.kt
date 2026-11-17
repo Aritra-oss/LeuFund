@@ -3,6 +3,7 @@ package com.example.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
@@ -66,7 +67,7 @@ import com.example.domain.CsvExporter
 import com.example.domain.DashboardCategoryFilter
 import com.example.domain.DashboardInsights
 import com.example.domain.EntrySortOrder
-import com.example.domain.PdfReportGenerator
+import com.example.domain.PdfExportHelper
 import com.example.domain.ThemeMode
 import com.example.security.BiometricAuthenticator
 import com.example.ui.components.BiometricLockScreen
@@ -244,6 +245,8 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
     }
   val activeAccentColor = activeThemePalette.accent
 
+  var pendingPdfFallback by remember { mutableStateOf<Triple<String, ByteArray, String>?>(null) }
+
   val exportCsvLauncher =
     rememberLauncherForActivityResult(
       contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -257,10 +260,49 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
     rememberLauncherForActivityResult(
       contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
+      val fallback = pendingPdfFallback
+      pendingPdfFallback = null
       if (uri != null) {
-        viewModel.exportCurrentBusinessToPdf { context.contentResolver.openOutputStream(uri) }
+        if (fallback != null) {
+          viewModel.writePdfBytesToStream(
+            businessName = fallback.first,
+            pdfBytes = fallback.second,
+            shareUriString = fallback.third,
+          ) {
+            context.contentResolver.openOutputStream(uri)
+          }
+        } else {
+          viewModel.exportCurrentBusinessToPdf { context.contentResolver.openOutputStream(uri) }
+        }
       }
     }
+
+  fun startPdfExport() {
+    isSettingsOpen = false
+    viewModel.exportCurrentBusinessPdf(
+      persistPdf = { fileName, pdfBytes ->
+        PdfExportHelper.savePdfToCacheAndDownloads(context, fileName, pdfBytes)
+      },
+      onFallbackCreateDocument = { businessName, fileName, pdfBytes, shareUriString ->
+        pendingPdfFallback = Triple(businessName, pdfBytes, shareUriString)
+        val launched = runCatching { exportPdfLauncher.launch(fileName) }.isSuccess
+        if (!launched) {
+          pendingPdfFallback = null
+          val opened =
+            PdfExportHelper.openOrSharePdf(
+              context = context,
+              uri = Uri.parse(shareUriString),
+              title = fileName,
+            )
+          if (opened) {
+            viewModel.recordPdfExportCompleted(businessName, shareUriString)
+          } else {
+            viewModel.reportPdfExportError()
+          }
+        }
+      },
+    )
+  }
 
   LaunchedEffect(viewModel) {
     viewModel.events.collect { event ->
@@ -317,10 +359,27 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
 
         is FundTrackEvent.PdfExportSuccess -> {
           snackbarHostState.currentSnackbarData?.dismiss()
-          snackbarHostState.showSnackbar(
-            message = context.getString(R.string.export_pdf_success, event.businessName),
-            duration = SnackbarDuration.Short,
-          )
+          val message =
+            if (event.savedToDownloads) {
+              context.getString(R.string.export_pdf_downloads_success, event.businessName)
+            } else {
+              context.getString(R.string.export_pdf_success, event.businessName)
+            }
+          val actionLabel =
+            if (!event.shareUriString.isNullOrBlank()) context.getString(R.string.open_pdf) else null
+          val result =
+            snackbarHostState.showSnackbar(
+              message = message,
+              actionLabel = actionLabel,
+              duration = SnackbarDuration.Long,
+            )
+          if (result == SnackbarResult.ActionPerformed && !event.shareUriString.isNullOrBlank()) {
+            PdfExportHelper.openOrSharePdf(
+              context = context,
+              uri = Uri.parse(event.shareUriString),
+              title = "${event.businessName} Report",
+            )
+          }
         }
 
         FundTrackEvent.PdfExportError -> {
@@ -512,14 +571,13 @@ fun FundTrackApp(viewModel: FundTrackViewModel) {
               },
               onExportCsv = {
                 isSettingsOpen = false
-                exportCsvLauncher.launch(CsvExporter.suggestedFileName(state.selectedBusiness.name))
+                runCatching {
+                  exportCsvLauncher.launch(CsvExporter.suggestedFileName(state.selectedBusiness.name))
+                }.onFailure {
+                  viewModel.exportCurrentBusinessToCsv { null }
+                }
               },
-              onExportPdf = {
-                isSettingsOpen = false
-                exportPdfLauncher.launch(
-                  PdfReportGenerator.suggestedFileName(state.selectedBusiness.name)
-                )
-              },
+              onExportPdf = { startPdfExport() },
               onDeleteAllData = {
                 viewModel.deleteAllBusinessData(state.selectedBusiness.id)
               },

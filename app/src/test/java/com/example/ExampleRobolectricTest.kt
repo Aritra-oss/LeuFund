@@ -66,4 +66,21 @@ class ExampleRobolectricTest {
     db.businessDao().deleteBusinessById(bizId)
     assertTrue(db.entryDao().observeEntriesForBusiness(bizId).first().isEmpty())
   }
+
+  @Test
+  fun pdfExportHelper_savesToCacheAndResolvesFileProviderUri() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val samplePdf = "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF".toByteArray()
+    val outcome =
+      com.example.domain.PdfExportHelper.savePdfToCacheAndDownloads(
+        context = context,
+        fileName = "leufunds_test_report.pdf",
+        pdfBytes = samplePdf,
+      )
+
+    assertTrue(outcome.shareUri.toString().contains(".fileprovider"))
+    val cachedFile = java.io.File(context.cacheDir, "exports/leufunds_test_report.pdf")
+    assertTrue(cachedFile.exists())
+    assertEquals(samplePdf.size.toLong(), cachedFile.length())
+  }
 }

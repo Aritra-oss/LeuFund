@@ -3,10 +3,10 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -133,13 +130,16 @@ fun FinancialSummaryBottomSheet(
       }
 
       // Period selector pills
-      LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 20.dp),
+      val periodsScrollState = rememberScrollState()
+      Row(
+        modifier =
+          Modifier.fillMaxWidth()
+            .horizontalScroll(periodsScrollState)
+            .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        items(items = periods, key = { periodTag(it) }) { period ->
+        for (period in periods) {
           val isSelected = period == effectivePeriod
           val label = periodLabel(period)
           val pillShape = RoundedCornerShape(999.dp)
@@ -166,19 +166,10 @@ fun FinancialSummaryBottomSheet(
                 listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd)
               )
             }
-          val shadowTint =
-            if (isSelected) themePalette.accent.copy(alpha = 0.35f) else semanticColors.glassShadow
 
           Box(
             modifier =
               Modifier.heightIn(min = 48.dp)
-                .shadow(
-                  elevation = if (isSelected) 6.dp else 4.dp,
-                  shape = pillShape,
-                  clip = false,
-                  ambientColor = shadowTint,
-                  spotColor = shadowTint,
-                )
                 .clip(pillShape)
                 .background(fillBrush)
                 .border(width = 1.dp, brush = rimBrush, shape = pillShape)
@@ -320,13 +311,6 @@ private fun PeriodHeroCard(
   Box(
     modifier =
       Modifier.fillMaxWidth()
-        .shadow(
-          elevation = 10.dp,
-          shape = cardShape,
-          clip = false,
-          ambientColor = themePalette.accent.copy(alpha = 0.40f),
-          spotColor = themePalette.accent.copy(alpha = 0.40f),
-        )
         .clip(cardShape)
         .background(fillBrush)
         .border(width = 1.dp, brush = rimBrush, shape = cardShape),

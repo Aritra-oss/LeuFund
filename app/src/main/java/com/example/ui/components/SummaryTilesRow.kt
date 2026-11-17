@@ -136,7 +136,7 @@ private fun SummaryTile(
 
   val trackColor = contentColor.copy(alpha = 0.14f)
   val fillColor = contentColor.copy(alpha = 0.85f)
-  val tileShape = RoundedCornerShape(22.dp)
+  val tileShape = RoundedCornerShape(20.dp)
   val fillBrush =
     remember(containerColor) {
       Brush.linearGradient(

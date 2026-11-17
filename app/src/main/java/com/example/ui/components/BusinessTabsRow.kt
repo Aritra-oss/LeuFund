@@ -1,19 +1,13 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,10 +15,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -48,13 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -92,6 +81,7 @@ fun BusinessTabsRow(
   val haptics = LocalHapticFeedback.current
   val coroutineScope = rememberCoroutineScope()
   val formBringIntoViewRequester = remember { BringIntoViewRequester() }
+  val tabsScrollState = rememberScrollState()
   var isAddOpen by rememberSaveable { mutableStateOf(false) }
   var newBusinessName by rememberSaveable { mutableStateOf("") }
   var showNameError by rememberSaveable { mutableStateOf(false) }
@@ -110,7 +100,7 @@ fun BusinessTabsRow(
   }
 
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    // Editorial Top Brand Command Bar
+    // Classic editorial top brand bar
     Row(
       modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -140,13 +130,16 @@ fun BusinessTabsRow(
       }
     }
 
-    LazyRow(
-      modifier = Modifier.fillMaxWidth(),
-      contentPadding = PaddingValues(horizontal = 16.dp),
+    // Plain horizontalScroll Row avoids nested SubcomposeLayout overhead inside LazyColumn
+    Row(
+      modifier =
+        Modifier.fillMaxWidth()
+          .horizontalScroll(tabsScrollState)
+          .padding(horizontal = 16.dp),
       horizontalArrangement = Arrangement.spacedBy(10.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      items(items = openBusinesses, key = { it.id }) { business ->
+      for (business in openBusinesses) {
         val isSelected = business.id == selectedBusinessId
         val palette = BusinessThemePalette.fromId(business.themeId)
         val dotColor = if (isSelected) palette.accentLightTint else palette.accent
@@ -221,53 +214,36 @@ fun BusinessTabsRow(
         }
       }
 
-      item(key = "new_business_pill") {
-        val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-        val pillShape = RoundedCornerShape(999.dp)
-        Box(
-          modifier =
-            Modifier.heightIn(min = 48.dp)
-              .clip(pillShape)
-              .background(semanticColors.glassFillEnd.copy(alpha = 0.45f))
-              .futuristicClickable(role = Role.Button) {
-                isAddOpen = !isAddOpen
-                showNameError = false
-              }
-              .drawWithCache {
-                val corner = CornerRadius(size.height / 2f, size.height / 2f)
-                val stroke =
-                  Stroke(
-                    width = 1.5.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f),
-                  )
-                onDrawBehind {
-                  drawRoundRect(color = dashColor, cornerRadius = corner, style = stroke)
-                }
-              }
-              .padding(horizontal = 16.dp, vertical = 12.dp)
-              .testTag("new_business_pill"),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            text = stringResource(R.string.new_business_pill),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+      val newPillShape = RoundedCornerShape(999.dp)
+      Box(
+        modifier =
+          Modifier.heightIn(min = 48.dp)
+            .clip(newPillShape)
+            .background(semanticColors.glassFillEnd.copy(alpha = 0.60f))
+            .border(width = 1.dp, color = semanticColors.glassRimStart, shape = newPillShape)
+            .futuristicClickable(role = Role.Button) {
+              isAddOpen = !isAddOpen
+              showNameError = false
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("new_business_pill"),
+        contentAlignment = Alignment.Center,
+      ) {
+        Text(
+          text = stringResource(R.string.new_business_pill),
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
     }
 
-    AnimatedVisibility(
-      visible = isAddOpen,
-      enter = fadeIn(tween(140)) + expandVertically(tween(160)),
-      exit = fadeOut(tween(120)) + shrinkVertically(tween(140)),
-    ) {
+    if (isAddOpen) {
       GlassCard(
         modifier =
           Modifier.fillMaxWidth()
             .padding(horizontal = 16.dp)
             .bringIntoViewRequester(formBringIntoViewRequester),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(22.dp),
         elevated = true,
       ) {
         Column(

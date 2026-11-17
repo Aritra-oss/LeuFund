@@ -78,6 +78,8 @@
     <string name="export_pdf_title">Export PDF report</string>
     <string name="export_pdf_desc">Save a formatted PDF summary report of %1$s.</string>
     <string name="export_pdf_success">Saved PDF report for \"%1$s\"</string>
+    <string name="export_pdf_downloads_success">Saved \"%1$s\" PDF to Downloads</string>
+    <string name="open_pdf">Open</string>
     <string name="export_pdf_error">Could not save PDF report</string>
     <string name="backup_prompt_title">Backup your data</string>
     <string name="backup_prompt_body_never">You haven\'t exported a backup in over 30 days. Save a CSV or PDF copy so your records stay safe.</string>

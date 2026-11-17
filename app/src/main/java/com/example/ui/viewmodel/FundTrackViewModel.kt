@@ -13,6 +13,7 @@ import com.example.domain.CsvExporter
 import com.example.domain.CurrencyFormatter
 import com.example.domain.DashboardInsights
 import com.example.domain.PdfReportGenerator
+import com.example.domain.PdfSaveOutcome
 import com.example.domain.ThemeMode
 import java.io.OutputStream
 import kotlinx.coroutines.Dispatchers
@@ -226,7 +227,10 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
         withContext(Dispatchers.IO) {
           runCatching {
               val stream = openOutputStream() ?: return@runCatching false
-              stream.use { it.write(csvContent.toByteArray(Charsets.UTF_8)) }
+              stream.use {
+                it.write(csvContent.toByteArray(Charsets.UTF_8))
+                it.flush()
+              }
               true
             }
             .getOrDefault(false)
@@ -243,6 +247,106 @@ class FundTrackViewModel(private val repository: FundTrackRepository) : ViewMode
         _events.emit(FundTrackEvent.ExportError)
       }
     }
+  }
+
+  fun exportCurrentBusinessPdf(
+    persistPdf: (fileName: String, pdfBytes: ByteArray) -> PdfSaveOutcome?,
+    onFallbackCreateDocument: (businessName: String, fileName: String, pdfBytes: ByteArray, shareUriString: String) -> Unit,
+  ) {
+    val dashboard = uiState.value as? FundTrackUiState.Dashboard
+    if (dashboard == null) {
+      viewModelScope.launch { _events.emit(FundTrackEvent.PdfExportError) }
+      return
+    }
+    val businessName = dashboard.selectedBusiness.name
+    val fileName = PdfReportGenerator.suggestedFileName(businessName)
+
+    viewModelScope.launch {
+      val result =
+        withContext(Dispatchers.IO) {
+          runCatching {
+              val bytes = PdfReportGenerator.buildBusinessReportPdfBytes(dashboard)
+              val outcome = persistPdf(fileName, bytes) ?: return@runCatching null
+              Pair(bytes, outcome)
+            }
+            .getOrNull()
+        }
+
+      if (result == null) {
+        _events.emit(FundTrackEvent.PdfExportError)
+        return@launch
+      }
+
+      val (pdfBytes, outcome) = result
+      if (outcome.savedToDownloads) {
+        repository.recordExportCompleted()
+        _events.emit(
+          FundTrackEvent.PdfExportSuccess(
+            businessName = businessName,
+            shareUriString = outcome.shareUri.toString(),
+            savedToDownloads = true,
+          )
+        )
+      } else {
+        onFallbackCreateDocument(
+          businessName,
+          fileName,
+          pdfBytes,
+          outcome.shareUri.toString(),
+        )
+      }
+    }
+  }
+
+  fun writePdfBytesToStream(
+    businessName: String,
+    pdfBytes: ByteArray,
+    shareUriString: String?,
+    openOutputStream: () -> OutputStream?,
+  ) {
+    viewModelScope.launch {
+      val succeeded =
+        withContext(Dispatchers.IO) {
+          runCatching {
+              val stream = openOutputStream() ?: return@runCatching false
+              stream.use {
+                it.write(pdfBytes)
+                it.flush()
+              }
+              true
+            }
+            .getOrDefault(false)
+        }
+      if (succeeded) {
+        repository.recordExportCompleted()
+        _events.emit(
+          FundTrackEvent.PdfExportSuccess(
+            businessName = businessName,
+            shareUriString = shareUriString,
+            savedToDownloads = false,
+          )
+        )
+      } else {
+        _events.emit(FundTrackEvent.PdfExportError)
+      }
+    }
+  }
+
+  fun recordPdfExportCompleted(businessName: String, shareUriString: String?) {
+    viewModelScope.launch {
+      repository.recordExportCompleted()
+      _events.emit(
+        FundTrackEvent.PdfExportSuccess(
+          businessName = businessName,
+          shareUriString = shareUriString,
+          savedToDownloads = false,
+        )
+      )
+    }
+  }
+
+  fun reportPdfExportError() {
+    viewModelScope.launch { _events.emit(FundTrackEvent.PdfExportError) }
   }
 
   fun exportCurrentBusinessToPdf(openOutputStream: () -> OutputStream?) {

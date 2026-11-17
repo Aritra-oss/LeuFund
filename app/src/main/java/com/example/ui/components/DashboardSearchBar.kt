@@ -1,23 +1,17 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -75,8 +69,9 @@ fun DashboardSearchBar(
 ) {
   val semanticColors = LocalFundTrackColors.current
   val focusManager = LocalFocusManager.current
+  val chipsScrollState = rememberScrollState()
   val trimmedQuery = query.trim()
-  val searchShape = RoundedCornerShape(20.dp)
+  val searchShape = RoundedCornerShape(18.dp)
   var isSearchFocused by remember { mutableStateOf(false) }
 
   val onSelectAll = remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.ALL) } }
@@ -87,7 +82,7 @@ fun DashboardSearchBar(
   val onSelectDue = remember(onSelectCategory) { { onSelectCategory(DashboardCategoryFilter.DUE) } }
 
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    // Lightweight frosted glass search capsule (avoids heavy M3 OutlinedTextField composition on scroll)
+    // Frosted glass search capsule
     Row(
       modifier =
         Modifier.fillMaxWidth()
@@ -159,134 +154,123 @@ fun DashboardSearchBar(
       }
     }
 
-    // Category filter & sort chips row
-    LazyRow(
-      modifier = Modifier.fillMaxWidth(),
-      contentPadding = PaddingValues(horizontal = 16.dp),
+    // Category filter & sort chips row using plain horizontalScroll (no nested SubcomposeLayout)
+    Row(
+      modifier =
+        Modifier.fillMaxWidth()
+          .horizontalScroll(chipsScrollState)
+          .padding(horizontal = 16.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      item(key = "filter_all") {
-        FilterChipPill(
-          label = stringResource(R.string.filter_all),
-          count = investmentCount + revenueCount + dueCount,
-          isSelected = selectedCategory == DashboardCategoryFilter.ALL,
-          accentColor = accentColor,
-          onClick = onSelectAll,
-          testTag = "filter_chip_all",
-        )
-      }
-      item(key = "filter_investment") {
-        FilterChipPill(
-          label = stringResource(R.string.section_investment),
-          count = investmentCount,
-          isSelected = selectedCategory == DashboardCategoryFilter.INVESTMENT,
-          accentColor = semanticColors.softRedContent,
-          onClick = onSelectInvestment,
-          testTag = "filter_chip_investment",
-        )
-      }
-      item(key = "filter_revenue") {
-        FilterChipPill(
-          label = stringResource(R.string.section_revenue),
-          count = revenueCount,
-          isSelected = selectedCategory == DashboardCategoryFilter.REVENUE,
-          accentColor = accentColor,
-          onClick = onSelectRevenue,
-          testTag = "filter_chip_revenue",
-        )
-      }
-      item(key = "filter_due") {
-        FilterChipPill(
-          label = stringResource(R.string.section_money_due),
-          count = dueCount,
-          isSelected = selectedCategory == DashboardCategoryFilter.DUE,
-          accentColor = semanticColors.softAmberContent,
-          onClick = onSelectDue,
-          testTag = "filter_chip_due",
-        )
-      }
-      item(key = "sort_toggle") {
-        val isSortedHighest = sortOrder == EntrySortOrder.HIGHEST_AMOUNT
-        val sortShape = RoundedCornerShape(999.dp)
-        val sortFillBrush =
-          remember(
-            isSortedHighest,
-            accentColor,
-            semanticColors.glassFillStart,
-            semanticColors.glassFillEnd,
-          ) {
-            if (isSortedHighest) {
-              Brush.linearGradient(
-                colors = listOf(accentColor.copy(alpha = 0.22f), accentColor.copy(alpha = 0.12f))
-              )
-            } else {
-              Brush.linearGradient(
-                colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
-              )
-            }
-          }
-        val sortRimBrush =
-          remember(
-            isSortedHighest,
-            accentColor,
-            semanticColors.glassRimStart,
-            semanticColors.glassRimEnd,
-          ) {
-            if (isSortedHighest) {
-              Brush.linearGradient(
-                colors = listOf(accentColor.copy(alpha = 0.72f), accentColor.copy(alpha = 0.28f))
-              )
-            } else {
-              Brush.linearGradient(
-                colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd)
-              )
-            }
-          }
+      FilterChipPill(
+        label = stringResource(R.string.filter_all),
+        count = investmentCount + revenueCount + dueCount,
+        isSelected = selectedCategory == DashboardCategoryFilter.ALL,
+        accentColor = accentColor,
+        onClick = onSelectAll,
+        testTag = "filter_chip_all",
+      )
+      FilterChipPill(
+        label = stringResource(R.string.section_investment),
+        count = investmentCount,
+        isSelected = selectedCategory == DashboardCategoryFilter.INVESTMENT,
+        accentColor = semanticColors.softRedContent,
+        onClick = onSelectInvestment,
+        testTag = "filter_chip_investment",
+      )
+      FilterChipPill(
+        label = stringResource(R.string.section_revenue),
+        count = revenueCount,
+        isSelected = selectedCategory == DashboardCategoryFilter.REVENUE,
+        accentColor = accentColor,
+        onClick = onSelectRevenue,
+        testTag = "filter_chip_revenue",
+      )
+      FilterChipPill(
+        label = stringResource(R.string.section_money_due),
+        count = dueCount,
+        isSelected = selectedCategory == DashboardCategoryFilter.DUE,
+        accentColor = semanticColors.softAmberContent,
+        onClick = onSelectDue,
+        testTag = "filter_chip_due",
+      )
 
-        Box(
-          modifier =
-            Modifier.heightIn(min = 48.dp)
-              .clip(sortShape)
-              .background(sortFillBrush)
-              .border(width = 1.dp, brush = sortRimBrush, shape = sortShape)
-              .futuristicClickable(role = Role.Button, onClick = onToggleSort)
-              .testTag("sort_order_toggle"),
-          contentAlignment = Alignment.Center,
+      val isSortedHighest = sortOrder == EntrySortOrder.HIGHEST_AMOUNT
+      val sortShape = RoundedCornerShape(999.dp)
+      val sortFillBrush =
+        remember(
+          isSortedHighest,
+          accentColor,
+          semanticColors.glassFillStart,
+          semanticColors.glassFillEnd,
         ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Outlined.Sort,
-              contentDescription = null,
-              tint =
-                if (isSortedHighest) accentColor
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(16.dp),
+          if (isSortedHighest) {
+            Brush.linearGradient(
+              colors = listOf(accentColor.copy(alpha = 0.22f), accentColor.copy(alpha = 0.12f))
             )
-            Text(
-              text =
-                if (isSortedHighest) stringResource(R.string.sort_highest)
-                else stringResource(R.string.sort_newest),
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.SemiBold,
-              color =
-                if (isSortedHighest) accentColor
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+          } else {
+            Brush.linearGradient(
+              colors = listOf(semanticColors.glassFillStart, semanticColors.glassFillEnd)
             )
           }
+        }
+      val sortRimBrush =
+        remember(
+          isSortedHighest,
+          accentColor,
+          semanticColors.glassRimStart,
+          semanticColors.glassRimEnd,
+        ) {
+          if (isSortedHighest) {
+            Brush.linearGradient(
+              colors = listOf(accentColor.copy(alpha = 0.72f), accentColor.copy(alpha = 0.28f))
+            )
+          } else {
+            Brush.linearGradient(
+              colors = listOf(semanticColors.glassRimStart, semanticColors.glassRimEnd)
+            )
+          }
+        }
+
+      Box(
+        modifier =
+          Modifier.heightIn(min = 48.dp)
+            .clip(sortShape)
+            .background(sortFillBrush)
+            .border(width = 1.dp, brush = sortRimBrush, shape = sortShape)
+            .futuristicClickable(role = Role.Button, onClick = onToggleSort)
+            .testTag("sort_order_toggle"),
+        contentAlignment = Alignment.Center,
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Outlined.Sort,
+            contentDescription = null,
+            tint =
+              if (isSortedHighest) accentColor
+              else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+          )
+          Text(
+            text =
+              if (isSortedHighest) stringResource(R.string.sort_highest)
+              else stringResource(R.string.sort_newest),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color =
+              if (isSortedHighest) accentColor
+              else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
         }
       }
     }
 
-    AnimatedVisibility(
-      visible = trimmedQuery.isNotEmpty(),
-      enter = fadeIn(tween(120)) + expandVertically(tween(140)),
-      exit = fadeOut(tween(100)) + shrinkVertically(tween(120)),
-    ) {
+    if (trimmedQuery.isNotEmpty()) {
       Text(
         text =
           if (matchingCount == 0) {

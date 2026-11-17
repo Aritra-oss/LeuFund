@@ -1,11 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,15 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,15 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -80,9 +67,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Emits a cohesive classic-futuristic glass section directly into the parent [LazyColumn] with
- * unified translucent fills, single-pass `drawWithCache` borders/dividers, and zero placement
- * animation churn so scrolling across section boundaries stays smooth.
+ * Emits a classic, lightweight virtualized ledger section directly into [LazyColumn] using
+ * standalone frosted entry cards under clean editorial headers (zero custom stitched-border
+ * geometry or idle visibility wrappers for buttery-smooth scrolling across sections).
  */
 fun LazyListScope.ledgerSection(
   businessId: Long,
@@ -121,15 +108,14 @@ fun LazyListScope.ledgerSection(
       LedgerSectionEmptyRow(type = type, emptyMessage = emptyMessage)
     }
   } else {
-    itemsIndexed(
+    items(
       items = models,
-      key = { _, model -> "${keyPrefix}_${model.entry.id}" },
-      contentType = { _, _ -> "ledger_entry_row" },
-    ) { index, model ->
+      key = { model -> "${keyPrefix}_${model.entry.id}" },
+      contentType = { _ -> "ledger_entry_row" },
+    ) { model ->
       LedgerVirtualizedEntryRow(
         model = model,
         type = type,
-        showBottomDivider = index < models.lastIndex,
         badgeContainerColor = badgeContainerColor,
         badgeContentColor = badgeContentColor,
         isPrivacyMasked = isPrivacyMasked,
@@ -162,104 +148,81 @@ private fun LedgerSectionHeader(
   maskedAmountLabel: String,
 ) {
   val semanticColors = LocalFundTrackColors.current
-  val borderColor = semanticColors.glassRimStart
-  val sectionFillColor =
-    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
-    }
   val formattedTotal =
     remember(totalAmount, isPrivacyMasked, maskedAmountLabel) {
       if (isPrivacyMasked) maskedAmountLabel else CurrencyFormatter.formatInr(totalAmount)
     }
 
-  Box(
+  Row(
     modifier =
       Modifier.fillMaxWidth()
-        .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-        .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-        .background(sectionFillColor)
+        .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 6.dp)
         .testTag("section_card_${type.name.lowercase()}"),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween,
   ) {
     Row(
-      modifier =
-        Modifier.fillMaxWidth()
-          .drawCardSideAndTopBorders(borderColor = borderColor, cornerRadiusDp = 26f)
-          .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.SpaceBetween,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-      ) {
-        // Futuristic glowing neon vertical telemetry strip
-        Box(
-          modifier =
-            Modifier.width(4.dp)
-              .height(18.dp)
-              .clip(RoundedCornerShape(999.dp))
-              .background(markerColor)
-        )
-        Text(
-          text = title,
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Box(
-          modifier =
-            Modifier.clip(RoundedCornerShape(999.dp))
-              .background(semanticColors.glassElevatedStart.copy(alpha = 0.72f))
-              .border(1.dp, borderColor.copy(alpha = 0.45f), RoundedCornerShape(999.dp)),
-        ) {
-          Text(
-            text = itemCount.toString(),
-            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-          )
-        }
-      }
-
+      Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(markerColor))
       Text(
-        text = formattedTotal,
-        style =
-          MaterialTheme.typography.titleMedium.copy(
-            fontWeight = FontWeight.Bold,
-            fontFeatureSettings = "tnum",
-          ),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.testTag("section_total_${type.name.lowercase()}"),
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onBackground,
       )
+      Box(
+        modifier =
+          Modifier.clip(RoundedCornerShape(999.dp))
+            .background(semanticColors.glassFillStart)
+            .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.65f), RoundedCornerShape(999.dp)),
+      ) {
+        Text(
+          text = itemCount.toString(),
+          style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+      }
     }
+
+    Text(
+      text = formattedTotal,
+      style =
+        MaterialTheme.typography.titleMedium.copy(
+          fontWeight = FontWeight.Bold,
+          fontFeatureSettings = "tnum",
+        ),
+      color = MaterialTheme.colorScheme.onBackground,
+      modifier = Modifier.testTag("section_total_${type.name.lowercase()}"),
+    )
   }
 }
 
 @Composable
 private fun LedgerSectionEmptyRow(type: EntryType, emptyMessage: String?) {
   val semanticColors = LocalFundTrackColors.current
-  val sectionFillColor =
+  val cardShape = RoundedCornerShape(16.dp)
+  val fillColor =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.35f)
     }
+
   Box(
     modifier =
       Modifier.fillMaxWidth()
-        .padding(horizontal = 16.dp)
-        .background(sectionFillColor)
+        .padding(horizontal = 16.dp, vertical = 4.dp)
+        .clip(cardShape)
+        .background(fillColor)
+        .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.70f), cardShape)
+        .padding(horizontal = 16.dp, vertical = 14.dp),
   ) {
     Text(
       text = emptyMessage ?: stringResource(R.string.nothing_here_yet),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier =
-        Modifier.fillMaxWidth()
-          .drawRowBordersAndDivider(
-            borderColor = semanticColors.glassRimStart,
-            dividerColor = Color.Transparent,
-            showDivider = false,
-          )
-          .padding(horizontal = 20.dp, vertical = 8.dp)
-          .testTag("empty_text_${type.name.lowercase()}"),
+      modifier = Modifier.testTag("empty_text_${type.name.lowercase()}"),
     )
   }
 }
@@ -268,7 +231,6 @@ private fun LedgerSectionEmptyRow(type: EntryType, emptyMessage: String?) {
 private fun LedgerVirtualizedEntryRow(
   model: EntryUiModel,
   type: EntryType,
-  showBottomDivider: Boolean,
   badgeContainerColor: Color,
   badgeContentColor: Color,
   isPrivacyMasked: Boolean,
@@ -282,12 +244,11 @@ private fun LedgerVirtualizedEntryRow(
   val haptics = LocalHapticFeedback.current
   val entry = model.entry
   val displayAmount = if (isPrivacyMasked) maskedAmountLabel else model.formattedAmount
-  val sectionFillColor =
+  val cardShape = RoundedCornerShape(16.dp)
+  val rowFillColor =
     remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
+      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.35f)
     }
-  val dividerColor =
-    remember(semanticColors.cardBorder) { semanticColors.cardBorder.copy(alpha = 0.6f) }
 
   val handleEditClick = remember(entry, onEdit) { { onEdit(entry) } }
   val handleDeleteClick =
@@ -310,15 +271,12 @@ private fun LedgerVirtualizedEntryRow(
     modifier =
       modifier
         .fillMaxWidth()
-        .padding(horizontal = 16.dp)
-        .background(sectionFillColor)
-        .drawRowBordersAndDivider(
-          borderColor = semanticColors.glassRimStart,
-          dividerColor = dividerColor,
-          showDivider = showBottomDivider,
-        )
+        .padding(horizontal = 16.dp, vertical = 4.dp)
+        .clip(cardShape)
+        .background(rowFillColor)
+        .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.72f), cardShape)
         .clickable(onClick = handleEditClick)
-        .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
+        .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp)
         .testTag("entry_row_${entry.id}"),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -414,72 +372,43 @@ private fun LedgerSectionFooter(
 ) {
   val semanticColors = LocalFundTrackColors.current
   var isFormOpen by rememberSaveable(businessId, type) { mutableStateOf(false) }
+  val buttonShape = RoundedCornerShape(14.dp)
 
-  val sectionFillColor =
-    remember(semanticColors.glassFillStart, semanticColors.glassFillEnd) {
-      lerp(semanticColors.glassFillStart, semanticColors.glassFillEnd, 0.40f)
-    }
-  val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-
-  Box(
-    modifier =
-      Modifier.fillMaxWidth()
-        .padding(horizontal = 16.dp)
-        .clip(RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp))
-        .background(sectionFillColor),
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    Column(
+    if (isFormOpen) {
+      InlineEntryFormCard(
+        businessId = businessId,
+        type = type,
+        onSave = { name, amount ->
+          onAddEntry(name, amount)
+          isFormOpen = false
+        },
+      )
+    }
+
+    Box(
       modifier =
         Modifier.fillMaxWidth()
-          .drawCardSideAndBottomBorders(borderColor = semanticColors.glassRimStart, cornerRadiusDp = 26f)
-          .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 18.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+          .heightIn(min = 48.dp)
+          .clip(buttonShape)
+          .background(semanticColors.glassFillEnd.copy(alpha = 0.65f))
+          .border(1.dp, semanticColors.glassRimStart.copy(alpha = 0.80f), buttonShape)
+          .futuristicClickable(role = Role.Button) {
+            isFormOpen = !isFormOpen
+          }
+          .padding(horizontal = 16.dp, vertical = 12.dp)
+          .testTag("toggle_add_btn_${type.name.lowercase()}"),
+      contentAlignment = Alignment.Center,
     ) {
-      AnimatedVisibility(
-        visible = isFormOpen,
-        enter = fadeIn(tween(140)) + expandVertically(tween(160)),
-        exit = fadeOut(tween(120)) + shrinkVertically(tween(140)),
-      ) {
-        InlineEntryFormCard(
-          businessId = businessId,
-          type = type,
-          onSave = { name, amount ->
-            onAddEntry(name, amount)
-            isFormOpen = false
-          },
-        )
-      }
-
-      Box(
-        modifier =
-          Modifier.fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .futuristicClickable(role = Role.Button) {
-              isFormOpen = !isFormOpen
-            }
-            .drawWithCache {
-              val radius = 16.dp.toPx()
-              val corner = CornerRadius(radius, radius)
-              val stroke =
-                Stroke(
-                  width = 1.5.dp.toPx(),
-                  pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f),
-                )
-              onDrawBehind {
-                drawRoundRect(color = dashColor, cornerRadius = corner, style = stroke)
-              }
-            }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .testTag("toggle_add_btn_${type.name.lowercase()}"),
-        contentAlignment = Alignment.Center,
-      ) {
-        Text(
-          text = if (isFormOpen) stringResource(R.string.cancel) else addButtonLabel,
-          style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
+      Text(
+        text = if (isFormOpen) stringResource(R.string.cancel) else addButtonLabel,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }
@@ -637,120 +566,6 @@ private fun InlineEntryFormCard(
     }
   }
 }
-
-private fun Modifier.drawRowBordersAndDivider(
-  borderColor: Color,
-  dividerColor: Color,
-  showDivider: Boolean,
-): Modifier =
-  this.drawWithCache {
-    val w = 1.dp.toPx()
-    val halfW = w / 2f
-    val divPad = 20.dp.toPx()
-    val divY = size.height - halfW
-    onDrawBehind {
-      drawLine(borderColor, Offset(halfW, 0f), Offset(halfW, size.height), strokeWidth = w)
-      drawLine(
-        borderColor,
-        Offset(size.width - halfW, 0f),
-        Offset(size.width - halfW, size.height),
-        strokeWidth = w,
-      )
-      if (showDivider) {
-        drawLine(dividerColor, Offset(divPad, divY), Offset(size.width - divPad, divY), strokeWidth = w)
-      }
-    }
-  }
-
-private fun Modifier.drawCardSideAndTopBorders(
-  borderColor: Color,
-  cornerRadiusDp: Float,
-): Modifier =
-  this.drawWithCache {
-    val strokeW = 1.dp.toPx()
-    val r = cornerRadiusDp.dp.toPx()
-    val inset = strokeW / 2f
-    val strokeStyle = Stroke(width = strokeW)
-    val arcSize = Size(r * 2f, r * 2f)
-    onDrawBehind {
-      drawLine(borderColor, Offset(inset, r), Offset(inset, size.height), strokeWidth = strokeW)
-      drawLine(
-        borderColor,
-        Offset(size.width - inset, r),
-        Offset(size.width - inset, size.height),
-        strokeWidth = strokeW,
-      )
-      drawLine(borderColor, Offset(r, inset), Offset(size.width - r, inset), strokeWidth = strokeW)
-      drawArc(
-        color = borderColor,
-        startAngle = 180f,
-        sweepAngle = 90f,
-        useCenter = false,
-        topLeft = Offset(inset, inset),
-        size = arcSize,
-        style = strokeStyle,
-      )
-      drawArc(
-        color = borderColor,
-        startAngle = 270f,
-        sweepAngle = 90f,
-        useCenter = false,
-        topLeft = Offset(size.width - r * 2f - inset, inset),
-        size = arcSize,
-        style = strokeStyle,
-      )
-    }
-  }
-
-private fun Modifier.drawCardSideAndBottomBorders(
-  borderColor: Color,
-  cornerRadiusDp: Float,
-): Modifier =
-  this.drawWithCache {
-    val strokeW = 1.dp.toPx()
-    val r = cornerRadiusDp.dp.toPx()
-    val inset = strokeW / 2f
-    val strokeStyle = Stroke(width = strokeW)
-    val arcSize = Size(r * 2f, r * 2f)
-    onDrawBehind {
-      drawLine(
-        borderColor,
-        Offset(inset, 0f),
-        Offset(inset, size.height - r),
-        strokeWidth = strokeW,
-      )
-      drawLine(
-        borderColor,
-        Offset(size.width - inset, 0f),
-        Offset(size.width - inset, size.height - r),
-        strokeWidth = strokeW,
-      )
-      drawLine(
-        borderColor,
-        Offset(r, size.height - inset),
-        Offset(size.width - r, size.height - inset),
-        strokeWidth = strokeW,
-      )
-      drawArc(
-        color = borderColor,
-        startAngle = 90f,
-        sweepAngle = 90f,
-        useCenter = false,
-        topLeft = Offset(inset, size.height - r * 2f - inset),
-        size = arcSize,
-        style = strokeStyle,
-      )
-      drawArc(
-        color = borderColor,
-        startAngle = 0f,
-        sweepAngle = 90f,
-        useCenter = false,
-        topLeft = Offset(size.width - r * 2f - inset, size.height - r * 2f - inset),
-        size = arcSize,
-        style = strokeStyle,
-      )
-    }
-  }
 
 internal fun sanitizeDecimalAmount(input: String): String {
   val sb = StringBuilder()
